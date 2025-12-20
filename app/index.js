@@ -23,7 +23,7 @@ api.interceptors.request.use(config => {
 });
 
 const WHITELIST_FILE = "/app/whitelist.txt";
-const WHITELIST_REPO_URL = "https://raw.githubusercontent.com/denpiligrim/test_3dp-manager/main/whitelist.txt";
+const WHITELIST_REPO_URL = "https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/whitelist.txt";
 
 // Вспомогательные функции
 async function updateWhitelist() {

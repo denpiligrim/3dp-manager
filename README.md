@@ -1,4 +1,4 @@
-[English](https://github.com/denpiligrim/test_3dp-manager/blob/main/README_EN.md)
+[English](https://github.com/denpiligrim/3dp-manager/blob/main/README_EN.md)
 
 # 3DP-MANAGER
 
@@ -13,17 +13,17 @@
 
 ### Установка
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/test_3dp-manager/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/install.sh)
 ```
 
 ### Обновление
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/test_3dp-manager/main/update.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/update.sh)
 ```
 
 ### Удаление
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/test_3dp-manager/main/delete.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/delete.sh)
 ```
 
 ---
@@ -32,12 +32,12 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/test_3dp-manager
 
 ### Установка перенаправления
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/test_3dp-manager/main/forwarding_install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/forwarding_install.sh)
 ```
 
 ### Удаление перенаправления
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/test_3dp-manager/main/forwarding_delete.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/forwarding_delete.sh)
 ```
 
 ---

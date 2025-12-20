@@ -1,4 +1,4 @@
-[Русский](https://github.com/denpiligrim/test_3dp-manager/blob/main/README.md)
+[Русский](https://github.com/denpiligrim/3dp-manager/blob/main/README.md)
 
 # 3DP-MANAGER
 
@@ -13,17 +13,17 @@ Discussions are available on the Telegram channel: [@denpiligrim_web](https://t.
 
 ### Install
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/test_3dp-manager/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/install.sh)
 ```
 
 ### Update
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/test_3dp-manager/main/update.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/update.sh)
 ```
 
 ### Delete
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/test_3dp-manager/main/delete.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/delete.sh)
 ```
 
 ---
@@ -31,12 +31,12 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/test_3dp-manager
 The subscription and inbound redirection service works in conjunction with **3DP-MANAGER** and allows you to redirect all inbound traffic from the intermediate server to the main server. The same ports are redirected, namely `443`, `8443`, and the range `10000-60000`. The service also creates a link to the subscription, automatically replacing the IP address or domain in the configurations. Redirects are configured by adding iptables rules to the ufw configuration file, which ensures stable operation in conjunction with the firewall. It is recommended to install the service on a clean server without any previously installed rules.
 ### Install forwarding
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/test_3dp-manager/main/forwarding_install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/forwarding_install.sh)
 ```
 
 ### Delete forwarding
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/test_3dp-manager/main/forwarding_delete.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/forwarding_delete.sh)
 ```
 
 ---

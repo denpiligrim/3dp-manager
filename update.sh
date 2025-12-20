@@ -23,7 +23,7 @@ need_root() {
 #################################
 
 PROJECT_DIR="/opt/3dp-manager"
-REPO_RAW="https://raw.githubusercontent.com/denpiligrim/test_3dp-manager/main"
+REPO_RAW="https://raw.githubusercontent.com/denpiligrim/3dp-manager/main"
 
 #################################
 # START

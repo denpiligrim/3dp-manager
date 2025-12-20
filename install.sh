@@ -112,7 +112,7 @@ cd "$PROJECT_DIR"
 # Белый лист
 #################################
 
-REPO_BASE="https://raw.githubusercontent.com/denpiligrim/test_3dp-manager/main"
+REPO_BASE="https://raw.githubusercontent.com/denpiligrim/3dp-manager/main"
 
 curl -fsSL "$REPO_BASE/whitelist.txt" -o whitelist.txt
 log "whitelist.txt скопирован"
