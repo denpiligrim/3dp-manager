@@ -1,0 +1,17 @@
+services:
+  node:
+    build: ./app
+    env_file: .env
+    volumes:
+      - ./subscriptions:/subscriptions
+      - ./whitelist.txt:/app/whitelist.txt:ro
+    restart: unless-stopped
+
+  nginx:
+    image: nginx:alpine
+    depends_on: [node]
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./subscriptions:/subscriptions
