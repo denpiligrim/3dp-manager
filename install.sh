@@ -45,9 +45,36 @@ echo ""
 # ВВОД ДАННЫХ
 #################################
 
-read -rp "URL панели 3x-ui (с портом и путем): " UI_URL
-UI_URL="${UI_URL%/}"
-validate_url "$UI_URL" || die "Некорректный URL 3x-ui"
+# Функция для получения URL панели из 3x-ui
+get_xui_url() {
+    # Пытаемся выполнить x-ui settings и вытащить строку Access URL
+    local output
+    output=$(x-ui settings 2>/dev/null | grep "Access URL:" | head -1)
+
+    if [[ -n "$output" ]]; then
+        # Обрезаем всё до последнего пробела и берём URL
+        echo "$output" | awk -F': ' '{print $2}' | sed 's/ *$//'
+        return 0
+    else
+        return 1
+    fi
+}
+
+echo "Определяем URL панели 3x-ui..."
+
+UI_URL=$(get_xui_url)
+
+if [[ -n "$UI_URL" ]]; then
+    UI_URL="${UI_URL%/}"  # убираем trailing slash, если есть
+    echo "URL панели 3x-ui: $UI_URL"
+else
+    echo "Не удалось автоматически получить URL"
+    read -rp "Введите URL панели 3x-ui вручную (полная ссылка): " UI_URL
+    UI_URL="${UI_URL%/}"
+fi
+
+# Проверка корректности URL
+validate_url "$UI_URL" || die "Некорректный URL панели 3x-ui: $UI_URL"
 
 read -rp "Логин 3x-ui: " UI_LOGIN
 read -rsp "Пароль 3x-ui: " UI_PASSWORD
