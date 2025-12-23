@@ -63,7 +63,9 @@ echo "Определяем URL панели 3x-ui..."
 UI_URL=$(get_xui_url)
 
 if [[ -n "$UI_URL" ]]; then
-  UI_URL="${UI_URL%/}"  # remove trailing slash if present
+  while [[ "$UI_URL" == */ ]]; do # remove trailing slash if present
+    UI_URL="${UI_URL%/}"
+  done
   echo "URL панели 3x-ui: $UI_URL"
 else
     echo "Не удалось автоматически получить URL"
