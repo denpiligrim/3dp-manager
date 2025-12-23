@@ -136,10 +136,30 @@ mkdir -p "$PROJECT_DIR"
 cd "$PROJECT_DIR"
 
 #################################
+# Получаем флаг
+#################################
+REPO_BASE="https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix"
+COUNTRY_FLAG=""
+
+# Получаем countryCode
+IP_JSON=$(curl -s --fail http://ip-api.com/json/ || true)
+[ -z "$IP_JSON" ] && exit 0
+
+COUNTRY_CODE=$(echo "$IP_JSON" | jq -r '.countryCode // empty' 2>/dev/null)
+[ -z "$COUNTRY_CODE" ] && exit 0
+
+# URL флагов
+FLAGS_JSON_URL="$REPO_BASE/app/assets/flags.json"
+
+FLAGS_JSON=$(curl -s "$FLAGS_JSON_URL" || true)
+[ -z "$FLAGS_JSON" ] && exit 0
+
+# Ищем emoji
+COUNTRY_FLAG=$(echo "$FLAGS_JSON" | jq -r --arg code "$COUNTRY_CODE" '.[] | select(.code == $code) | .emoji // empty' 2>/dev/null | head -n1)
+
+#################################
 # Белый лист
 #################################
-
-REPO_BASE="https://raw.githubusercontent.com/denpiligrim/3dp-manager/main"
 
 curl -fsSL "$REPO_BASE/whitelist.txt" -o whitelist.txt
 log "whitelist.txt скопирован"
@@ -207,6 +227,7 @@ SUB_TOKEN=$SUB_TOKEN
 UI_URL=$UI_URL
 UI_LOGIN=$UI_LOGIN
 UI_PASSWORD=$UI_PASSWORD
+COUNTRY_FLAG=$COUNTRY_FLAG
 NGINX_PORT=$NGINX_PORT
 UI_HOST=$UI_HOST
 UI_PROTO=$UI_PROTO

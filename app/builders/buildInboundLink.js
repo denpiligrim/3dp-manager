@@ -1,3 +1,5 @@
+const flag = process.env.COUNTRY_FLAG ?? '%F0%9F%92%AF';
+
 export function buildInboundLink(inbound, domain, idOrPass) {
   let link = "";
 
@@ -48,7 +50,7 @@ function buildVlessLink(inbound, domain, uuid) {
     params.set("fp", r.settings.fingerprint || "random");
     params.set("sni", r.serverNames?.[0] || "");
     params.set("sid", r.shortIds?.[0] || "");
-    params.set("spx", '%2F');
+    params.set("spx", '/');
 
     // TCP Reality flow
     if (network === "tcp") {
@@ -88,7 +90,7 @@ function buildVlessLink(inbound, domain, uuid) {
   return (
     `vless://${uuid}@${domain}:${inbound.port}` +
     `?${params.toString()}` +
-    `#${encodeURIComponent(inbound.remark)}`
+    `#${flag}%20${encodeURIComponent(inbound.remark)}`
   );
 }
 
@@ -105,7 +107,7 @@ function buildVmessLink(inbound, domain, uuid) {
     net: stream.network || "tcp",
     path: "/",
     port: inbound.port,
-    ps: inbound.remark,
+    ps: flag + ' ' + inbound.remark,
     scy: "",
     sni: "",
     tls: stream.security || "none",
@@ -134,7 +136,7 @@ function buildSsLink(inbound, domain) {
     .from(userInfo, "utf8")
     .toString("base64");
 
-  return `ss://${base64}@${domain}:${inbound.port}?type=tcp#${inbound.remark}`;
+  return `ss://${base64}@${domain}:${inbound.port}?type=tcp#${flag}%20${inbound.remark}`;
 }
 
 function buildTrojanLink(inbound, domain, password) {
@@ -155,6 +157,6 @@ function buildTrojanLink(inbound, domain, password) {
     `&sni=${sni}` +
     `&sid=${sid}` +
     `&spx=${spx}` +
-    `#${inbound.remark}-${password}`
+    `#${flag}%20${inbound.remark}-${password}`
   );
 }
