@@ -50,8 +50,8 @@ get_xui_url() {
     output=$(x-ui settings 2>/dev/null | grep "Access URL:" | head -1)
 
     if [[ -n "$output" ]]; then
-      # Trim everything before the URL and take it
-      echo "$output" | awk -F': ' '{print $2}' | sed 's/ *$//'
+      # Trim everything before the URL and remove trailing whitespace/CR and trailing slashes
+      echo "$output" | awk -F': ' '{print $2}' | sed -e 's/[[:space:]]*$//' -e 's:/*$::'
         return 0
     else
         return 1
