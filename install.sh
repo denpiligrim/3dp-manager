@@ -45,31 +45,23 @@ echo ""
 #################################
 # Function to get panel URL from 3x-ui
 get_xui_url() {
-    # Try to run `x-ui settings` and extract the Access URL line
-    local output
-    output=$(x-ui settings 2>/dev/null | grep "Access URL:" | head -1)
+    local output=$(x-ui settings 2>/dev/null)
 
-    if [[ -n "$output" ]]; then
-      # Extract the URL only (stop at space or closing parenthesis), then trim whitespace/CR and trailing slashes
-      echo "$output" | grep -oE 'https?://[^[:space:]\)\]\}]*' | head -n1 | sed -e 's/[[:space:]]*$//' -e 's:/*$::'
-        return 0
-    else
-        return 1
-    fi
+    echo "$output" | grep -oE 'https?://[^ ]+' | head -n1
 }
 
 echo "Определяем URL панели 3x-ui..."
 
 UI_URL=$(get_xui_url)
 
-if [[ -n "$UI_URL" ]]; then
-  # Remove carriage returns and trailing whitespace, then strip trailing slashes
-  echo "URL панели 3x-ui: $UI_URL"
-else
+if [[ -z "$UI_URL" ]]; then
     echo "Не удалось автоматически получить URL"
-    read -rp "Введите URL панели 3x-ui вручную (полная ссылка): " UI_URL
-    UI_URL="${UI_URL%/}"
+    read -rp "Введите URL панели 3x-ui вручную: " UI_URL
 fi
+
+UI_URL=$(echo "$UI_URL" | sed -E 's/[[:space:]]*$//; s|/*$||')
+
+echo "URL панели 3x-ui: $UI_URL"
 
 # Validate URL correctness
 validate_url "$UI_URL" || die "Некорректный URL панели 3x-ui: $UI_URL"
