@@ -15,7 +15,9 @@ die() { echo -e "\033[1;31m[ERROR]\033[0m $1"; exit 1; }
 
 [[ $EUID -eq 0 ]] || die "Запускать нужно от root"
 
-# --- ASCII-баннер ---
+#################################
+# ASCII-баннер
+#################################
 echo "==================================================="
 echo "    ____             ____  _ ___            _         "
 echo "   / __ \___  ____  / __ \(_) (_)___ ______(_)___ ___ "
@@ -27,7 +29,6 @@ echo ""
 echo "        3DP-MANAGER SUBSCRIPTION FORWARDER         "
 echo "==================================================="
 echo ""
-# --------------------
 
 #################################
 # INPUT
@@ -51,22 +52,16 @@ SUB_PATH="/$(echo "$ORIGIN_SUB_URL" | cut -d/ -f4-)"
 #################################
 # Определяем ORIGIN_IP
 #################################
-
 if [[ "$ORIGIN_HOST" =~ ^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$ ]]; then
-    # Это уже IP-адрес
     ORIGIN_IP="$ORIGIN_HOST"
     log "Используем прямой IP из URL: $ORIGIN_IP"
 else
-    # Это домен — разрешаем в IP
     log "Разрешаем домен $ORIGIN_HOST в IP..."
 
-    # Пробуем getent ahosts (IPv4 приоритет)
     ORIGIN_IP=$(getent ahosts "$ORIGIN_HOST" | awk '/^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/ {print $1; exit}')
 
-    # Если не вышло — fallback на hosts
     [[ -z "$ORIGIN_IP" ]] && ORIGIN_IP=$(getent hosts "$ORIGIN_HOST" | awk '{print $1; exit}')
 
-    # Последний шанс — dig (если установлен)
     if [[ -z "$ORIGIN_IP" ]] && command -v dig >/dev/null; then
         ORIGIN_IP=$(dig +short "$ORIGIN_HOST" | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -n1)
     fi
@@ -76,7 +71,6 @@ else
     log "Домен $ORIGIN_HOST разрешён в IP: $ORIGIN_IP"
 fi
 
-# Финальная проверка
 [[ -n "$ORIGIN_IP" && -n "$ORIGIN_PORT" && -n "$SUB_PATH" ]] || die "Ошибка парсинга URL подписки"
 
 #################################
@@ -194,7 +188,6 @@ EOF
 #################################
 # NGINX  & DOCKER COMPOSE
 #################################
-
 if $USE_HTTPS; then
 cat > nginx.conf <<EOF
 events {}
@@ -293,12 +286,10 @@ else
     systemctl restart docker
 fi
 
-# Проверка docker compose v2
 if docker compose version >/dev/null 2>&1; then
     log "docker compose v2 доступен"
 else
     log "Устанавливаем docker-compose-v2"
-    # решаем конфликт с docker-compose-plugin
     apt install -y --allow-downgrades --allow-remove-essential --allow-change-held-packages \
         docker-compose-v2 || warn "docker-compose-v2 не установлен, возможно уже есть плагин"
 fi
@@ -313,27 +304,20 @@ docker compose up -d --build
 #################################
 LOCAL_IP=$(hostname -I | awk '{print $1}')
 
-# Проверка и установка UFW, если не установлен
 if ! command -v ufw >/dev/null 2>&1; then
     echo "UFW не установлен. Устанавливаю..."
     apt update -qq && apt install -y ufw
 fi
 
-# Проверка статуса UFW (независимо от локали, на английском)
 if LC_ALL=C ufw status 2>/dev/null | grep -q "Status: active"; then
     echo "UFW уже активен."
 else
     echo "ВНИМАНИЕ: UFW выключен или не настроен. Включаю..."
     
-    # Разрешаем SSH (или другой порт, если используете не 22)
-    # OpenSSH — стандартный профиль, обычно порт 22
     ufw allow OpenSSH >/dev/null 2>&1 || true
-    # Если SSH на другом порту, добавьте: ufw allow 2222/tcp
     
-    # Включаем UFW без подтверждения
     ufw --force enable >/dev/null 2>&1
     
-    # Проверяем, успешно ли включён
     if LC_ALL=C ufw status 2>/dev/null | grep -q "Status: active"; then
         echo "UFW успешно включён."
     else
@@ -342,7 +326,7 @@ else
     fi
 fi
 
-echo "--- 1. Оптимизация сетевого стека ядра ---"
+echo "--- Оптимизация сетевого стека ядра ---"
 cat <<EOF > /etc/sysctl.d/99-relay-optimization.conf
 net.ipv4.ip_forward = 1
 net.core.default_qdisc = fq
@@ -361,10 +345,9 @@ net.ipv4.tcp_tw_reuse=1
 EOF
 sysctl --system
 
-echo "--- 2. Настройка правил перенаправления (before.rules) ---"
+echo "--- Настройка правил перенаправления (before.rules) ---"
 cp /etc/ufw/before.rules /etc/ufw/before.rules.bak
 
-# Создаем временный файл с вашими правилами
 cat <<EOF > /tmp/ufw_nat_rules
 *nat
 :PREROUTING ACCEPT [0:0]
@@ -400,28 +383,24 @@ COMMIT
 
 EOF
 
-# Удаляем старые блоки *nat и *mangle из оригинала, если они там были (от прошлых запусков)
-# И создаем чистую копию без них
 sed -i '/\*nat/,/COMMIT/d' /etc/ufw/before.rules
 sed -i '/\*mangle/,/COMMIT/d' /etc/ufw/before.rules
 
-# Склеиваем: Сначала NAT/Mangle, потом остаток оригинального before.rules
 cat /tmp/ufw_nat_rules /etc/ufw/before.rules > /etc/ufw/before.rules.new
 mv /etc/ufw/before.rules.new /etc/ufw/before.rules
 
-echo "--- 3. Открытие портов в самом фаерволе ---"
-# Разрешаем входящий трафик на эти порты
+echo "--- Открытие портов в самом фаерволе ---"
 ufw allow 443/tcp
+ufw allow 443/udp
 ufw allow 8443/tcp
+ufw allow 8443/udp
 ufw allow "$NGINX_PORT"/tcp
 ufw allow 10000:60000/tcp
 ufw allow 10000:60000/udp
 
-# Разрешаем FORWARD (пересылку)
-# Это критически важный шаг для корректной работы DNAT в UFW
 sed -i 's/DEFAULT_FORWARD_POLICY="DROP"/DEFAULT_FORWARD_POLICY="ACCEPT"/' /etc/default/ufw
 
-echo "--- 4. Перезапуск ---"
+echo "--- Перезапуск ---"
 ufw reload
 
 echo "Готово! Система оптимизирована, порты открыты, трафик перенаправлен."

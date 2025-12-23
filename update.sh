@@ -9,7 +9,6 @@ trap 'echo -e "\033[1;31m[ERROR]\033[0m Ошибка в строке $LINENO"; e
 #################################
 # HELPERS
 #################################
-
 log()  { echo -e "\033[1;32m[INFO]\033[0m $1"; }
 warn() { echo -e "\033[1;33m[WARN]\033[0m $1"; }
 die()  { echo -e "\033[1;31m[ERROR]\033[0m $1"; exit 1; }
@@ -21,14 +20,12 @@ need_root() {
 #################################
 # CONFIG
 #################################
-
 PROJECT_DIR="/opt/3dp-manager"
 REPO_RAW="https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix"
 
 #################################
 # START
 #################################
-
 need_root
 
 log "Обновление 3dp-manager"
@@ -40,14 +37,12 @@ cd "$PROJECT_DIR"
 #################################
 # CHECK DOCKER
 #################################
-
 command -v docker >/dev/null 2>&1 || die "Docker не установлен"
 docker compose version >/dev/null 2>&1 || die "docker compose v2 недоступен"
 
 #################################
 # DOWNLOAD FILES
 #################################
-
 log "Загружаем обновлённые файлы из репозитория"
 
 mkdir -p app
@@ -70,21 +65,18 @@ log "Файлы обновлены"
 #################################
 # REBUILD BACKEND
 #################################
-
 log "Пересобираем backend"
 docker compose build node
 
 #################################
 # RESTART CONTAINERS
 #################################
-
 log "Перезапускаем контейнеры"
 docker compose up -d
 
 #################################
 # HEALTH CHECK
 #################################
-
 sleep 2
 
 docker compose ps | grep node >/dev/null || die "Backend не запущен"
@@ -93,5 +85,4 @@ docker compose ps | grep nginx   >/dev/null || die "Nginx не запущен"
 #################################
 # DONE
 #################################
-
 log "3dp-manager успешно обновлён ✅"

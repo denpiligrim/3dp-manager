@@ -25,7 +25,7 @@ api.interceptors.request.use(config => {
 const WHITELIST_FILE = "/app/whitelist.txt";
 const WHITELIST_REPO_URL = "https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix/whitelist.txt";
 
-// Вспомогательные функции
+// Helper functions
 async function updateWhitelist() {
   try {
     const res = await axios.get(WHITELIST_REPO_URL, { timeout: 10000 });
@@ -138,7 +138,7 @@ async function addInbound(config) {
   }
 }
 
-// Основная ротация inbound'ов
+// Main rotation of inbound entries
 async function rotate() {
   await login();
 
@@ -169,7 +169,7 @@ async function rotate() {
     usedPorts.add(inbound.port);
     const idOrPass = inbound.settings ? JSON.parse(inbound.settings).clients?.[0]?.id || JSON.parse(inbound.settings).clients?.[0]?.password : "";
 
-    // Формируем ссылку в зависимости от протокола
+    // Build the link depending on the protocol
     const link = buildInboundLink(inbound, UI_HOST, idOrPass);
     if (link) subs.push(link);
     await addInbound(inbound);
@@ -179,7 +179,7 @@ async function rotate() {
   console.log("✔ 10 inbound created, подписка обновлена");
 }
 
-// Первый запуск
+// Initial run
 rotate();
 
 let interval = parseInt(process.env.ROTATE_INTERVAL) || 30;

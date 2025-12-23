@@ -1,5 +1,3 @@
-import crypto from "crypto";
-
 export function buildVlessWs({ port, uuid, domain }) {
   return {
     enable: true,

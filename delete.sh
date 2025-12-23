@@ -9,7 +9,6 @@ trap 'echo -e "\033[1;31m[ERROR]\033[0m Ошибка в строке $LINENO"; e
 #################################
 # HELPERS
 #################################
-
 log()  { echo -e "\033[1;32m[INFO]\033[0m $1"; }
 warn() { echo -e "\033[1;33m[WARN]\033[0m $1"; }
 die()  { echo -e "\033[1;31m[ERROR]\033[0m $1"; exit 1; }
@@ -21,7 +20,6 @@ need_root() {
 #################################
 # START
 #################################
-
 need_root
 
 PROJECT_DIR="/opt/3dp-manager"
@@ -38,7 +36,6 @@ cd "$PROJECT_DIR"
 #################################
 # DOCKER COMPOSE DOWN
 #################################
-
 if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
   if [[ -f docker-compose.yml ]]; then
     log "Останавливаем контейнеры 3dp-manager"
@@ -51,9 +48,8 @@ else
 fi
 
 #################################
-# CLEAN IMAGES (ТОЛЬКО НАШИ)
+# CLEAN IMAGES
 #################################
-
 log "Удаляем образы 3dp-manager (если есть)"
 
 docker images --format '{{.Repository}} {{.ID}}' \
@@ -64,12 +60,10 @@ docker images --format '{{.Repository}} {{.ID}}' \
 #################################
 # REMOVE DIRECTORY
 #################################
-
 log "Удаляем $PROJECT_DIR"
 rm -rf "$PROJECT_DIR"
 
 #################################
 # DONE
 #################################
-
 log "✔ 3dp-manager полностью удалён"

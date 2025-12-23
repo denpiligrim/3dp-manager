@@ -42,14 +42,11 @@ rm -rf "$BASE_DIR"
 #################################
 # UFW NAT CLEAN
 #################################
-echo "--- 1. Удаление оптимизаций ядра ---"
+echo "--- Удаление перенаправления ---"
 rm -f /etc/sysctl.d/99-relay-optimization.conf
-# Применяем стандартные настройки (отключаем BBR и forward, если они не были включены до этого)
 sysctl net.ipv4.ip_forward=0
-sysctl net.core.default_qdisc=pfifo_fast
-sysctl net.ipv4.tcp_congestion_control=cubic
 
-echo "--- 2. Восстановление правил UFW из бэкапа ---"
+echo "--- Восстановление правил UFW из бэкапа ---"
 if [ -f /etc/ufw/before.rules.bak ]; then
     mv /etc/ufw/before.rules.bak /etc/ufw/before.rules
     echo "Файл before.rules восстановлен из бэкапа."
@@ -57,17 +54,19 @@ else
     echo "ВНИМАНИЕ: Бэкап before.rules.bak не найден. Правила NAT придется удалять вручную."
 fi
 
-echo "--- 3. Удаление разрешающих правил портов ---"
+echo "--- Удаление разрешающих правил портов ---"
 ufw delete allow 443/tcp
+ufw delete allow 443/udp
 ufw delete allow 8443/tcp
+ufw delete allow 8443/udp
 ufw delete allow "$NGINX_PORT"/tcp
 ufw delete allow 10000:60000/tcp
 ufw delete allow 10000:60000/udp
 
-echo "--- 4. Возврат политики FORWARD по умолчанию (DROP) ---"
+echo "--- Возврат политики FORWARD по умолчанию (DROP) ---"
 sed -i 's/DEFAULT_FORWARD_POLICY="ACCEPT"/DEFAULT_FORWARD_POLICY="DROP"/' /etc/default/ufw
 
-echo "--- 5. Перезапуск фаервола ---"
+echo "--- Перезапуск фаервола ---"
 ufw reload
 
 #################################
@@ -77,4 +76,4 @@ ufw reload
 echo "Docker контейнеры удалены"
 echo "UFW NAT очищен"
 echo "ip_forward отключён"
-log "Откат завершён. Для применения изменений перезагрузите систему!"
+log "Откат завершён. Для окончательного применения изменений перезагрузите систему!"
