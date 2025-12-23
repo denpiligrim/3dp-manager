@@ -50,8 +50,8 @@ get_xui_url() {
     output=$(x-ui settings 2>/dev/null | grep "Access URL:" | head -1)
 
     if [[ -n "$output" ]]; then
-      # Trim everything before the URL and remove trailing whitespace/CR and trailing slashes
-      echo "$output" | awk -F': ' '{print $2}' | sed -e 's/[[:space:]]*$//' -e 's:/*$::'
+      # Extract the URL only (stop at space or closing parenthesis), then trim whitespace/CR and trailing slashes
+      echo "$output" | grep -oE 'https?://[^[:space:]\)\]\}]*' | head -n1 | sed -e 's/[[:space:]]*$//' -e 's:/*$::'
         return 0
     else
         return 1
@@ -64,8 +64,6 @@ UI_URL=$(get_xui_url)
 
 if [[ -n "$UI_URL" ]]; then
   # Remove carriage returns and trailing whitespace, then strip trailing slashes
-  UI_URL="${UI_URL//$'\r'/}"
-  UI_URL="$(echo -n "$UI_URL" | sed -e 's/[[:space:]]*$//' -e 's:/*$::')"
   echo "URL панели 3x-ui: $UI_URL"
 else
     echo "Не удалось автоматически получить URL"
