@@ -47,7 +47,7 @@ echo ""
 get_xui_url() {
     local output=$(x-ui settings 2>/dev/null)
 
-    echo "$output" | grep -oE 'https?://[^ ]+' | head -n1
+    echo "$output" | sed 's/\x1b\[[0-9;]*m//g' | grep "Access URL:" | grep -oE 'https?://[^[:space:]]+' | head -n1
 }
 
 echo "Определяем URL панели 3x-ui..."
