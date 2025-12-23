@@ -13,6 +13,7 @@
 - Реквизиты / донаты:
 	- Карта МИР: `2204320436318077`
 	- Карта MasterCard: `5395452209474530`
+	- ЮМоney: `4100116897060652`
 	- PayPal: `vasiljevdenisx@gmail.com`
 	- USDT | ETH (ERC20 | BEP20): `0x6fe140040f6Cdc1E1Ff2136cd1d60C0165809463`
 	- USDT | TRX (TRC20): `TEWxXmJxvkAmhshp7E61XJGHB3VyM9hNAb`

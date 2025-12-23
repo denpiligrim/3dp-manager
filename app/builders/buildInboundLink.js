@@ -107,7 +107,7 @@ function buildVmessLink(inbound, domain, uuid) {
     net: stream.network || "tcp",
     path: "/",
     port: inbound.port,
-    ps: flag + ' ' + inbound.remark,
+    ps: decodeURIComponent(flag) + ' ' + inbound.remark,
     scy: "",
     sni: "",
     tls: stream.security || "none",
@@ -157,6 +157,6 @@ function buildTrojanLink(inbound, domain, password) {
     `&sni=${sni}` +
     `&sid=${sid}` +
     `&spx=${spx}` +
-    `#${flag}%20${inbound.remark}-${password}`
+    `#${flag}%20${inbound.remark}`
   );
 }
