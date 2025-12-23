@@ -63,9 +63,9 @@ echo "Определяем URL панели 3x-ui..."
 UI_URL=$(get_xui_url)
 
 if [[ -n "$UI_URL" ]]; then
-  while [[ "$UI_URL" == */ ]]; do # remove trailing slash if present
-    UI_URL="${UI_URL%/}"
-  done
+  # Remove carriage returns and trailing whitespace, then strip trailing slashes
+  UI_URL="${UI_URL//$'\r'/}"
+  UI_URL="$(echo -n "$UI_URL" | sed -e 's/[[:space:]]*$//' -e 's:/*$::')"
   echo "URL панели 3x-ui: $UI_URL"
 else
     echo "Не удалось автоматически получить URL"
