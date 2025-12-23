@@ -293,6 +293,8 @@ http {
     location = /bus/$SUB_TOKEN {
       alias /subscriptions/list.txt;
       default_type text/plain;
+      add_header Subscription-Userinfo "upload=0; download=0; total=109951162777600; expire=0" always;
+      add_header Access-Control-Allow-Origin *;
     }
 
     location / {
@@ -334,6 +336,8 @@ http {
     location = /bus/$SUB_TOKEN {
       alias /subscriptions/list.txt;
       default_type text/plain;
+      add_header Subscription-Userinfo "upload=0; download=0; total=109951162777600; expire=0" always;
+      add_header Access-Control-Allow-Origin *;
     }
 
     location / {

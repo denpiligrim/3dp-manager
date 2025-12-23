@@ -206,6 +206,9 @@ http {
       proxy_set_header Host \$host;
       proxy_set_header X-Real-IP \$remote_addr;
       proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+
+      add_header Subscription-Userinfo "upload=0; download=0; total=109951162777600; expire=0" always;
+      add_header Access-Control-Allow-Origin *;
     }
   }
 }
@@ -246,6 +249,9 @@ http {
       proxy_set_header Host \$host;
       proxy_set_header X-Real-IP \$remote_addr;
       proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+
+      add_header Subscription-Userinfo "upload=0; download=0; total=109951162777600; expire=0" always;
+      add_header Access-Control-Allow-Origin *;
     }
   }
 }
