@@ -261,6 +261,7 @@ services:
 
   nginx:
     image: nginx:alpine
+    restart: unless-stopped
     depends_on: [node]
     ports:
       - "$NGINX_PORT:$NGINX_PORT"
@@ -309,6 +310,7 @@ services:
 
   nginx:
     image: nginx:alpine
+    restart: unless-stopped
     depends_on: [node]
     ports:
       - "$NGINX_PORT:$NGINX_PORT"

@@ -225,6 +225,7 @@ services:
 
   nginx:
     image: nginx:alpine
+    restart: unless-stopped
     container_name: nginx
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
@@ -268,6 +269,7 @@ services:
 
   nginx:
     image: nginx:alpine
+    restart: unless-stopped
     container_name: nginx
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
