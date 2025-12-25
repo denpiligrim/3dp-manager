@@ -9,6 +9,7 @@ services:
 
   nginx:
     image: nginx:alpine
+    restart: unless-stopped
     depends_on: [node]
     ports:
       - "80:80"

@@ -21,7 +21,7 @@ need_root() {
 # CONFIG
 #################################
 PROJECT_DIR="/opt/3dp-manager"
-REPO_RAW="https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix"
+REPO_RAW="https://raw.githubusercontent.com/denpiligrim/3dp-manager/main"
 
 #################################
 # START

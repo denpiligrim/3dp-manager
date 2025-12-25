@@ -109,7 +109,7 @@ cd "$BASE_DIR"
 #################################
 # DOWNLOAD FILES
 #################################
-REPO="https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix"
+REPO="https://raw.githubusercontent.com/denpiligrim/3dp-manager/main"
 NGINX_PORT=$ORIGIN_PORT
 if [[ "$USE_HTTPS" == "true" ]]; then
   NGINX_PROTO="https"

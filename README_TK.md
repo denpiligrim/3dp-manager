@@ -61,7 +61,7 @@ Maslahatchylyklar:
 Taslamany serwera gurnamak üçin şu komandany ýerine ýetiriň:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/install.sh)
 ```
 
 <small>Gysgaça: gurnama skripti işledilýär we konteýnerler we hyzmatlar döredilýär.</small>
@@ -71,7 +71,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-f
 Soňky wersiýa çenli täzeläň:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix/update.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/update.sh)
 ```
 
 <small>Gysgaça: iň soňky üýtgeşmeleri çekýär we konteýnerleri gaýtadan işledýär.</small>
@@ -81,7 +81,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-f
 Hyzmaty doly pozmak üçin:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix/delete.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/delete.sh)
 ```
 
 <small>Gysgaça: konteýnerleri we konfigurasiýa faýllaryny pozup, systemany gurnamadan öňki ýagdaýyna getirer.</small>
@@ -93,13 +93,13 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-f
 Forwarding hyzmaty aragatnaşyk serwerinden esasy servere gelýän portlary proxy arkaly geçirýär.
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix/forwarding_install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/forwarding_install.sh)
 ```
 
 ## Forwarding-i pozmak
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix/forwarding_delete.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/forwarding_delete.sh)
 ```
 
 ---
