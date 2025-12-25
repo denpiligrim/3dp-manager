@@ -111,7 +111,12 @@ cd "$BASE_DIR"
 #################################
 REPO="https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix"
 NGINX_PORT=$ORIGIN_PORT
-SUB_URL="$ORIGIN_PROTO://$LOCAL_HOST:$NGINX_PORT$SUB_PATH"
+if [[ "$USE_HTTPS" == "true" ]]; then
+  NGINX_PROTO="https"
+else
+  NGINX_PROTO="http"
+fi
+SUB_URL="$NGINX_PROTO://$LOCAL_HOST:$NGINX_PORT$SUB_PATH"
 
 #################################
 # ENV
