@@ -117,7 +117,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-f
 cd /opt/3dp-manager && docker compose exec node env | grep SUB_URL | cut -d'=' -f2
 ```
 
-<small>Краткое описание: выводит статичный URL подписки, который можно использовать в клиентах. Работает как на оснвном, так и на промежуточном сервере.</small>
+<small>Краткое описание: выводит статичный URL подписки, который можно использовать в клиентах. Работает как на основном, так и на промежуточном сервере.</small>
 
 ## Сбор доменов из мульти-подписок
 
@@ -138,7 +138,7 @@ node get_domains.js
 cd /opt/3dp-manager && docker cp ./app/my_whitelist.txt node:/app/my_whitelist.txt
 ```
 
-<small>Краткое описание: добавляет ваш файл доменов в контейнер приложения.</small>
+<small>Краткое описание: добавляет ваш файл доменов в контейнер приложения. Чтобы сразу же сгенерировать инбаунды с новыи списком, выполните `docker exec -it node sh` и затем `node index.js`.</small>
 
 ---
 
