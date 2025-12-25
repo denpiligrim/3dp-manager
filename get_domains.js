@@ -48,7 +48,7 @@ async function processSubscription() {
         const result = Array.from(domains).sort(); // Сортируем для удобства
 
         if (result.length > 0) {
-            fs.writeFileSync('domains.txt', result.join('\n'), 'utf8');
+            fs.writeFileSync('my_whitelist.txt', result.join('\n'), 'utf8');
             console.log(`Успешно! Сохранено уникальных доменов: ${result.length}`);
         } else {
             console.log('Валидные домены не найдены.');

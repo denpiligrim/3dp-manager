@@ -13,6 +13,7 @@ import { buildInboundLink } from "./builders/buildInboundLink.js";
 
 const { UI_URL, UI_LOGIN, UI_PASSWORD, UI_HOST } = process.env;
 const SUB_FILE = "/subscriptions/list.txt";
+const LAST_INBOUNDS = '/subscriptions/latestInbounds.json';
 
 const cookieJar = {};
 const api = axios.create({ baseURL: UI_URL, timeout: 15000, withCredentials: true });
@@ -25,7 +26,7 @@ api.interceptors.request.use(config => {
 const WHITELIST_FILE = "/app/whitelist.txt";
 const WHITELIST_REPO_URL = "https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/whitelist.txt";
 
-// Вспомогательные функции
+// Helper functions
 async function updateWhitelist() {
   try {
     const res = await axios.get(WHITELIST_REPO_URL, { timeout: 10000 });
@@ -124,6 +125,26 @@ async function getInbounds() {
   } catch (e) { console.error("Get inbounds failed:", e.message); return []; }
 }
 
+async function deleteInbounds() {
+  try {
+    const data = fs.readFileSync(LAST_INBOUNDS, 'utf-8');
+    const oldIds = JSON.parse(data);
+
+    if (Array.isArray(oldIds) && oldIds.length > 0) {
+      console.log(`Удаляем старые инбаунды: ${oldIds.length} шт.`);
+      for (const id of oldIds) {
+        try {
+          await deleteInbound(id);
+        } catch (err) {
+          console.error(`Ошибка при удалении инбаунда ${id}:`, err.message);
+        }
+      }
+    }
+  } catch (error) {
+    console.log("Старых ID не найдено, пропускаем удаление.");
+  }
+}
+
 async function deleteInbound(id) {
   try { await api.post(`/panel/api/inbounds/del/${id}`); } catch { }
 }
@@ -131,14 +152,14 @@ async function deleteInbound(id) {
 async function addInbound(config) {
   try {
     const res = await api.post("/panel/api/inbounds/add", config);
-    return res.data?.id || null;
+    return res.data?.obj?.id || null;
   } catch (e) {
     console.error("Add inbound failed:", e.message);
     return null;
   }
 }
 
-// Основная ротация inbound'ов
+// Main rotation of inbound entries
 async function rotate() {
   await login();
 
@@ -147,8 +168,7 @@ async function rotate() {
   const usedPorts = new Set();
   const subs = [];
 
-  const existing = await getInbounds();
-  for (const i of existing) await deleteInbound(i.id);
+  await deleteInbounds();
 
   const builders = [
     async (d) => buildVlessRealityTcp({ port: await isPortFree(8443) ? 8443 : await getFreePort(usedPorts), uuid: await uuid(), domain: d, keys: await generateRealityKeys() }),
@@ -163,23 +183,31 @@ async function rotate() {
     async (d) => buildTrojanRealityTcp({ port: await getFreePort(usedPorts), uuid: await uuid(), domain: d, keys: await generateRealityKeys() }),
   ];
 
+  const inboundIds = [];
+
   for (const b of builders) {
     const domain = pickDomain(whitelist);
     const inbound = await b(domain);
     usedPorts.add(inbound.port);
     const idOrPass = inbound.settings ? JSON.parse(inbound.settings).clients?.[0]?.id || JSON.parse(inbound.settings).clients?.[0]?.password : "";
 
-    // Формируем ссылку в зависимости от протокола
+    // Build the link depending on the protocol
     const link = buildInboundLink(inbound, UI_HOST, idOrPass);
     if (link) subs.push(link);
-    await addInbound(inbound);
+    const id = await addInbound(inbound);
+    inboundIds.push(id);
+  }
+
+  if (inboundIds.length > 0) {
+    fs.writeFileSync(LAST_INBOUNDS, JSON.stringify(inboundIds, null, 2));
+    console.log(`Новые ID (${inboundIds.length} шт.) сохранены в ${LAST_INBOUNDS}`);
   }
 
   fs.writeFileSync(SUB_FILE, subs.join("\n") + "\n", "utf8");
   console.log("✔ 10 inbound created, подписка обновлена");
 }
 
-// Первый запуск
+// Initial run
 rotate();
 
 let interval = parseInt(process.env.ROTATE_INTERVAL) || 30;

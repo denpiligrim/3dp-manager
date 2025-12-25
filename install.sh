@@ -2,14 +2,13 @@
 set -euo pipefail
 
 #################################
-# TRAP ДЛЯ ОТЛАДКИ
+# DEBUG TRAP
 #################################
 trap 'echo -e "\033[1;31m[ERROR]\033[0m Ошибка в строке $LINENO"; exit 1' ERR
 
 #################################
-# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# HELPER FUNCTIONS
 #################################
-
 log()  { echo -e "\033[1;32m[INFO]\033[0m $1"; }
 die()  { echo -e "\033[1;31m[ERROR]\033[0m $1"; exit 1; }
 
@@ -22,12 +21,13 @@ validate_url() {
 }
 
 #################################
-# ПРОВЕРКИ
+# CHECKS
 #################################
-
 need_root
 
-# --- ASCII-баннер ---
+#################################
+# ASCII-баннер
+#################################
 echo "==================================================="
 echo "    ____             ____  _ ___            _         "
 echo "   / __ \___  ____  / __ \(_) (_)___ ______(_)___ ___ "
@@ -39,22 +39,39 @@ echo ""
 echo "              3DP-MANAGER FOR 3X-UI                "
 echo "==================================================="
 echo ""
-# --------------------
 
 #################################
-# ВВОД ДАННЫХ
+# INPUT / USER DATA
 #################################
+# Function to get panel URL from 3x-ui
+get_xui_url() {
+    local output=$(x-ui settings 2>/dev/null)
 
-read -rp "URL панели 3x-ui (с портом и путем): " UI_URL
-UI_URL="${UI_URL%/}"
-validate_url "$UI_URL" || die "Некорректный URL 3x-ui"
+    echo "$output" | sed 's/\x1b\[[0-9;]*m//g' | grep "Access URL:" | grep -oE 'https?://[^[:space:]]+' | head -n1
+}
+
+echo "Определяем URL панели 3x-ui..."
+
+UI_URL=$(get_xui_url)
+
+if [[ -z "$UI_URL" ]]; then
+    echo "Не удалось автоматически получить URL"
+    read -rp "Введите URL панели 3x-ui вручную: " UI_URL
+fi
+
+UI_URL=$(echo "$UI_URL" | sed -E 's/[[:space:]]*$//; s|/*$||')
+
+echo "URL панели 3x-ui: $UI_URL"
+
+# Validate URL correctness
+validate_url "$UI_URL" || die "Некорректный URL панели 3x-ui: $UI_URL"
 
 read -rp "Логин 3x-ui: " UI_LOGIN
 read -rsp "Пароль 3x-ui: " UI_PASSWORD
 echo
 [[ -z "$UI_LOGIN" || -z "$UI_PASSWORD" ]] && die "Логин/пароль обязательны"
 
-# Проверка логина
+# Check login
 LOGIN_RESPONSE=$(curl -s -X POST "$UI_URL/login" -H "Content-Type: application/json" -d "{\"username\":\"$UI_LOGIN\",\"password\":\"$UI_PASSWORD\"}")
 
 # Проверка успешного логина по ключевому полю "success" или наличию куки
@@ -65,9 +82,9 @@ fi
 
 echo "✔ Успешный логин в 3x-ui"
 
-# Разбор UI_URL
-UI_HOST=$(echo "$UI_URL" | awk -F[/:] '{print $4}')   # домен или IP
-UI_PROTO=$(echo "$UI_URL" | awk -F: '{print $1}')     # http или https
+# Parse UI_URL
+UI_HOST=$(echo "$UI_URL" | awk -F[/:] '{print $4}')   # domain or IP
+UI_PROTO=$(echo "$UI_URL" | awk -F: '{print $1}')     # http or https
 
 if [[ "$UI_PROTO" == "https" ]]; then
   log "HTTPS панель обнаружена, проверяем SSL сертификаты"
@@ -90,11 +107,11 @@ if [[ "$UI_PROTO" == "https" ]]; then
 fi
 
 
-# Ввод интервала ротации
+# Input rotation interval
 read -rp "Интервал генерации инбаундов в минутах (от 10, по умолчанию 30): " ROTATE_INTERVAL
 ROTATE_INTERVAL="${ROTATE_INTERVAL:-30}"  # по умолчанию 30
 
-# Проверка, что это число и ≥10
+# Check that it's a number and ≥10
 if ! [[ "$ROTATE_INTERVAL" =~ ^[0-9]+$ ]] || [ "$ROTATE_INTERVAL" -lt 10 ]; then
   echo "Неверное значение. Используется значение по умолчанию 30 минут."
   ROTATE_INTERVAL=30
@@ -109,25 +126,42 @@ mkdir -p "$PROJECT_DIR"
 cd "$PROJECT_DIR"
 
 #################################
-# Белый лист
+# Get country flag
 #################################
-
 REPO_BASE="https://raw.githubusercontent.com/denpiligrim/3dp-manager/main"
+COUNTRY_FLAG=""
 
+# Get countryCode
+IP_JSON=$(curl -s --fail http://ip-api.com/json/ || true)
+[ -z "$IP_JSON" ] && exit 0
+
+COUNTRY_CODE=$(echo "$IP_JSON" | jq -r '.countryCode // empty' 2>/dev/null)
+[ -z "$COUNTRY_CODE" ] && exit 0
+
+# Flags JSON URL
+FLAGS_JSON_URL="$REPO_BASE/app/assets/flags.json"
+
+FLAGS_JSON=$(curl -s "$FLAGS_JSON_URL" || true)
+[ -z "$FLAGS_JSON" ] && exit 0
+
+# Ищем emoji
+COUNTRY_FLAG=$(echo "$FLAGS_JSON" | jq -r --arg code "$COUNTRY_CODE" '.[] | select(.code == $code) | .emoji // empty' 2>/dev/null | head -n1)
+
+#################################
+# Whitelist
+#################################
 curl -fsSL "$REPO_BASE/whitelist.txt" -o whitelist.txt
 log "whitelist.txt скопирован"
 
 #################################
-# ГЕНЕРАЦИЯ ТОКЕНА
+# TOKEN GENERATION
 #################################
-
 SUB_TOKEN="$(openssl rand -hex 24)"
 log "Сгенерирован токен подписки"
 
 #################################
 # DOCKER
 #################################
-
 log "Проверка Docker"
 
 if command -v docker >/dev/null 2>&1; then
@@ -140,7 +174,7 @@ else
     systemctl restart docker
 fi
 
-# Проверка docker compose v2
+# Check docker compose v2
 if docker compose version >/dev/null 2>&1; then
     log "docker compose v2 доступен"
 else
@@ -151,15 +185,14 @@ else
 fi
 
 #################################
-# СТРУКТУРА
+# STRUCTURE
 #################################
-
 mkdir -p app app/builders subscriptions
 
-# Генерация случайного свободного порта для подписки/Nginx
+# Generate a random free port for subscription/Nginx
 get_random_port() {
   while :; do
-    PORT=$((RANDOM % 50000 + 10000))  # диапазон 10000-60000
+    PORT=$((RANDOM % 50000 + 10000))  # range 10000-60000
     if ! ss -ltn | awk '{print $4}' | grep -q ":$PORT\$"; then
       echo "$PORT"
       return
@@ -168,18 +201,18 @@ get_random_port() {
 }
 NGINX_PORT=$(get_random_port)
 
-# Генерация URL подписки
+# Generate subscription URL
 SUB_URL="$UI_PROTO://$UI_HOST:$NGINX_PORT/bus/$SUB_TOKEN"
 
 #################################
 # ENV
 #################################
-
 cat > .env <<EOF
 SUB_TOKEN=$SUB_TOKEN
 UI_URL=$UI_URL
 UI_LOGIN=$UI_LOGIN
 UI_PASSWORD=$UI_PASSWORD
+COUNTRY_FLAG=$COUNTRY_FLAG
 NGINX_PORT=$NGINX_PORT
 UI_HOST=$UI_HOST
 UI_PROTO=$UI_PROTO
@@ -190,19 +223,16 @@ EOF
 #################################
 # Dockerfile
 #################################
-
 curl -fsSL "$REPO_BASE/app/Dockerfile" -o app/Dockerfile
 
 #################################
 # package.json
 #################################
-
 curl -fsSL "$REPO_BASE/app/package.json" -o app/package.json
 
 #################################
 # JS Files
 #################################
-
 curl -fsSL "$REPO_BASE/app/index.js" -o app/index.js
 curl -fsSL "$REPO_BASE/app/builders/buildVlessRealityTcp.js" -o app/builders/buildVlessRealityTcp.js
 curl -fsSL "$REPO_BASE/app/builders/buildVlessRealityXhttp.js" -o app/builders/buildVlessRealityXhttp.js
@@ -216,8 +246,7 @@ curl -fsSL "$REPO_BASE/app/builders/buildInboundLink.js" -o app/builders/buildIn
 #################################
 # NGINX & DOCKER COMPOSE
 #################################
-
-# Генерация nginx.conf
+# Generate nginx.conf
 if [[ "$UI_PROTO" == "https" ]]; then
   cat > docker-compose.yml <<EOF
 services:
@@ -232,6 +261,7 @@ services:
 
   nginx:
     image: nginx:alpine
+    restart: unless-stopped
     depends_on: [node]
     ports:
       - "$NGINX_PORT:$NGINX_PORT"
@@ -256,6 +286,8 @@ http {
     location = /bus/$SUB_TOKEN {
       alias /subscriptions/list.txt;
       default_type text/plain;
+      add_header Subscription-Userinfo "upload=0; download=0; total=109951162777600; expire=0" always;
+      add_header Access-Control-Allow-Origin *;
     }
 
     location / {
@@ -278,6 +310,7 @@ services:
 
   nginx:
     image: nginx:alpine
+    restart: unless-stopped
     depends_on: [node]
     ports:
       - "$NGINX_PORT:$NGINX_PORT"
@@ -297,6 +330,8 @@ http {
     location = /bus/$SUB_TOKEN {
       alias /subscriptions/list.txt;
       default_type text/plain;
+      add_header Subscription-Userinfo "upload=0; download=0; total=109951162777600; expire=0" always;
+      add_header Access-Control-Allow-Origin *;
     }
 
     location / {
@@ -308,9 +343,8 @@ EOF
 fi
 
 #################################
-# ЗАПУСК
+# RUN
 #################################
-
 log "Сборка контейнеров"
 docker compose build
 
@@ -321,9 +355,8 @@ docker compose ps | grep node >/dev/null || die "Backend не запущен"
 docker compose ps | grep nginx >/dev/null || die "Nginx не запущен"
 
 #################################
-# РЕЗУЛЬТАТ
+# RESULT
 #################################
-
 log "✔ Установка завершена"
 echo
 echo "URL подписки:"

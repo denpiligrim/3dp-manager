@@ -14,7 +14,8 @@ export function buildVmessTcp({ port, uuid }) {
         totalGB: 0,
         expiryTime: 0,
         tgId: "",
-        subId: "",
+        subId: "0",
+        alterId: "0",
         reset: 0
       }],
     }),
