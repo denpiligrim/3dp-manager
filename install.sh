@@ -201,9 +201,9 @@ else
     sudo apt install ca-certificates curl
     sudo install -m 0755 -d /etc/apt/keyrings
     if [[ "$ID" == "ubuntu" ]]; then
-        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.asc || die "Ошибка добавления ключа Docker"
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc || die "Ошибка добавления ключа Docker"
     else
-        curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.asc || die "Ошибка добавления ключа Docker"
+        curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc || die "Ошибка добавления ключа Docker"
     fi
     sudo chmod a+r /etc/apt/keyrings/docker.asc
 
