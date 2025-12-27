@@ -61,11 +61,11 @@
 
 ## Установка
 
-У вас должны быть установлены пакеты на сервере: `curl`, `jq` и панель управления `3x-ui`, которую можно установить командой: `bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)`
+У вас должны быть установлены пакеты на сервере `curl`, `jq` командой: `apt install curl jq` и панель управления `3x-ui`, которую можно установить командой: `bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)`
 Установите проект на сервер командой:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/install.sh)
 ```
 
 <small>Краткое описание: запускает скрипт установки и разворачивает контейнеры и сервисы.</small>
@@ -75,7 +75,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-f
 Обновление до последней версии:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix/update.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/update.sh)
 ```
 
 <small>Краткое описание: подтягивает последние изменения и перезапускает контейнеры.</small>
@@ -85,7 +85,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-f
 Полное удаление сервиса:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix/delete.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/delete.sh)
 ```
 
 <small>Краткое описание: удаляет контейнеры и файлы конфигурации, возвращая систему к состоянию до установки.</small>
@@ -94,10 +94,13 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-f
 
 ## Установка сервиса перенаправления (forwarding)
 
+> [!WARNING]  
+> Сервис перенаправления работает на промежуточном сервере.
+
 Сервис перенаправления позволяет проксировать входящие порты с промежуточного сервера на основной.
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix/forwarding_install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/forwarding_install.sh)
 ```
 
 <small>Краткое описание: добавляет правила перенаправления и создает сервис для обновления подписки.</small>
@@ -105,7 +108,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-f
 ## Удаление перенаправления
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix/forwarding_delete.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/forwarding_delete.sh)
 ```
 
 <small>Краткое описание: удаляет правила и отключает сервис перенаправления.</small>

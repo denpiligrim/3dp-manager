@@ -147,7 +147,7 @@ cd "$PROJECT_DIR"
 #################################
 # Get country flag
 #################################
-REPO_BASE="https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix"
+REPO_BASE="https://raw.githubusercontent.com/denpiligrim/3dp-manager/main"
 COUNTRY_FLAG=""
 
 # Get countryCode

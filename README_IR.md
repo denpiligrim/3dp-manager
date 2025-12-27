@@ -61,7 +61,7 @@
 برای نصب پروژه در سرور، دستور زیر را اجرا کنید:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/install.sh)
 ```
 
 <small>توضیح کوتاه: اسکریپت نصب را اجرا کرده و کانتینرها و سرویس‌ها را راه‌اندازی می‌کند.</small>
@@ -71,7 +71,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-f
 برای به‌روزرسانی به آخرین نسخه:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix/update.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/update.sh)
 ```
 
 <small>توضیح کوتاه: تغییرات جدید را می‌کشد و کانتینرها را ری‌استارت می‌کند.</small>
@@ -81,7 +81,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-f
 برای حذف کامل سرویس:
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix/delete.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/delete.sh)
 ```
 
 <small>توضیح کوتاه: کانتینرها و فایل‌های پیکربندی را حذف می‌کند و سیستم را به وضعیت پیش از نصب برمی‌گرداند.</small>
@@ -93,7 +93,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-f
 سرویس فورواردینگ امکان پراکسی کردن پورت‌های ورودی از سرور واسط به سرور اصلی را فراهم می‌کند.
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix/forwarding_install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/forwarding_install.sh)
 ```
 
 <small>توضیح کوتاه: قوانین فورواردینگ را اضافه کرده و سرویسی برای به‌روزرسانی اشتراک ایجاد می‌کند.</small>
@@ -101,7 +101,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-f
 ## حذف فورواردینگ
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix/forwarding_delete.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/forwarding_delete.sh)
 ```
 
 <small>توضیح کوتاه: قوانین را حذف کرده و سرویس فورواردینگ را غیرفعال می‌کند.</small>
