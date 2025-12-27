@@ -210,8 +210,15 @@ async function rotate() {
 // Initial run
 rotate();
 
-let interval = parseInt(process.env.ROTATE_INTERVAL) || 30;
-if (interval < 10) interval = 10;
+let interval = parseInt(process.env.ROTATE_INTERVAL, 10);
 
-const cronExpression = `*/${interval} * * * *`;
-cron.schedule(cronExpression, rotate);
+if (isNaN(interval) || interval < 10) {
+  console.warn('⚠ Интервал некорректен или меньше 10 минут. Используется значение по умолчанию 30 минут.');
+  interval = 30;
+}
+
+const intervalMs = interval * 60 * 1000;
+
+console.log(`✔ Интервал ротации установлен: ${interval} минут`);
+
+setInterval(rotate, intervalMs);

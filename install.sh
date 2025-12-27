@@ -25,6 +25,21 @@ validate_url() {
 #################################
 need_root
 
+# Check OS and set release variable
+. /etc/os-release
+if [[ "$ID" != "ubuntu" && "$ID" != "debian" ]]; then
+    die "Этот скрипт поддерживает только Ubuntu или Debian: $ID"
+fi
+
+if ! x-ui status >/dev/null 2>&1; then
+    echo "❌ Панель 3x-ui не найдена или не работает."
+    echo "   Чтобы установить, выполните:"
+    echo "bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)"
+    exit 1
+fi
+
+echo "✔ Панель 3x-ui найдена и работает"
+
 #################################
 # ASCII-баннер
 #################################
@@ -45,9 +60,9 @@ echo ""
 #################################
 # Function to get panel URL from 3x-ui
 get_xui_url() {
-    local output=$(x-ui settings 2>/dev/null)
+    local output=$(x-ui settings 2>/dev/null || true)
 
-    echo "$output" | sed 's/\x1b\[[0-9;]*m//g' | grep "Access URL:" | grep -oE 'https?://[^[:space:]]+' | head -n1
+    echo "$output" | sed 's/\x1b\[[0-9;]*m//g' | grep "Access URL:" | grep -oE 'https?://[^[:space:]]+' | head -n1 || true
 }
 
 echo "Определяем URL панели 3x-ui..."
@@ -60,11 +75,10 @@ if [[ -z "$UI_URL" ]]; then
 fi
 
 UI_URL=$(echo "$UI_URL" | sed -E 's/[[:space:]]*$//; s|/*$||')
-
-echo "URL панели 3x-ui: $UI_URL"
-
 # Validate URL correctness
 validate_url "$UI_URL" || die "Некорректный URL панели 3x-ui: $UI_URL"
+
+echo "URL панели 3x-ui: $UI_URL"
 
 read -rp "Логин 3x-ui: " UI_LOGIN
 read -rsp "Пароль 3x-ui: " UI_PASSWORD
@@ -72,9 +86,14 @@ echo
 [[ -z "$UI_LOGIN" || -z "$UI_PASSWORD" ]] && die "Логин/пароль обязательны"
 
 # Check login
-LOGIN_RESPONSE=$(curl -s -X POST "$UI_URL/login" -H "Content-Type: application/json" -d "{\"username\":\"$UI_LOGIN\",\"password\":\"$UI_PASSWORD\"}")
+if ! command -v curl >/dev/null 2>&1; then
+  echo "❌ curl не установлен. Установите curl и повторите попытку"
+  echo "   sudo apt install -y curl"
+  exit 1
+fi
 
-# Проверка успешного логина по ключевому полю "success" или наличию куки
+LOGIN_RESPONSE=$(curl -s -X POST "$UI_URL/login" -H "Content-Type: application/json" -d "{\"username\":\"$UI_LOGIN\",\"password\":\"$UI_PASSWORD\"}" || true)
+
 if ! echo "$LOGIN_RESPONSE" | grep -q '"success":true'; then
   echo "Не удалось залогиниться в 3x-ui. Проверьте URL, логин и пароль."
   exit 1
@@ -109,7 +128,7 @@ fi
 
 # Input rotation interval
 read -rp "Интервал генерации инбаундов в минутах (от 10, по умолчанию 30): " ROTATE_INTERVAL
-ROTATE_INTERVAL="${ROTATE_INTERVAL:-30}"  # по умолчанию 30
+ROTATE_INTERVAL="${ROTATE_INTERVAL:-30}"
 
 # Check that it's a number and ≥10
 if ! [[ "$ROTATE_INTERVAL" =~ ^[0-9]+$ ]] || [ "$ROTATE_INTERVAL" -lt 10 ]; then
@@ -135,7 +154,13 @@ COUNTRY_FLAG=""
 IP_JSON=$(curl -s --fail http://ip-api.com/json/ || true)
 [ -z "$IP_JSON" ] && exit 0
 
-COUNTRY_CODE=$(echo "$IP_JSON" | jq -r '.countryCode // empty' 2>/dev/null)
+if ! command -v jq >/dev/null 2>&1; then
+    echo "❌ Не найден jq. Для работы скрипта необходимо установить jq."
+    echo "   sudo apt install -y jq"
+    exit 1
+fi
+
+COUNTRY_CODE=$(echo "$IP_JSON" | jq -r '.countryCode // empty' 2>/dev/null || true)
 [ -z "$COUNTRY_CODE" ] && exit 0
 
 # Flags JSON URL
@@ -144,19 +169,22 @@ FLAGS_JSON_URL="$REPO_BASE/app/assets/flags.json"
 FLAGS_JSON=$(curl -s "$FLAGS_JSON_URL" || true)
 [ -z "$FLAGS_JSON" ] && exit 0
 
-# Ищем emoji
+# emoji
 COUNTRY_FLAG=$(echo "$FLAGS_JSON" | jq -r --arg code "$COUNTRY_CODE" '.[] | select(.code == $code) | .emoji // empty' 2>/dev/null | head -n1)
 
 #################################
 # Whitelist
 #################################
-curl -fsSL "$REPO_BASE/whitelist.txt" -o whitelist.txt
-log "whitelist.txt скопирован"
+if curl -fsSL "$REPO_BASE/whitelist.txt" -o whitelist.txt; then
+    log "whitelist.txt скопирован"
+else
+    log "⚠ Не удалось скачать whitelist.txt"
+fi
 
 #################################
 # TOKEN GENERATION
 #################################
-SUB_TOKEN="$(openssl rand -hex 24)"
+SUB_TOKEN=$(tr -dc 'a-f0-9' </dev/urandom | head -c 16 2>/dev/null)
 log "Сгенерирован токен подписки"
 
 #################################
@@ -167,21 +195,31 @@ log "Проверка Docker"
 if command -v docker >/dev/null 2>&1; then
     log "Docker уже установлен"
 else
-    log "Docker не найден, будет установлен"
-    apt update
-    apt install -y docker.io || die "Ошибка установки docker.io"
-    systemctl enable docker
-    systemctl restart docker
-fi
+    log "Docker не найден, будет установлен из официального репозитория"
+    # Add Docker's official GPG key:
+    sudo apt update
+    sudo apt install ca-certificates curl
+    sudo install -m 0755 -d /etc/apt/keyrings
+    if [[ "$ID" == "ubuntu" ]]; then
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.asc || die "Ошибка добавления ключа Docker"
+    else
+        curl -fsSL https://download.docker.com/linux/debian/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.asc || die "Ошибка добавления ключа Docker"
+    fi
+    sudo chmod a+r /etc/apt/keyrings/docker.asc
 
-# Check docker compose v2
-if docker compose version >/dev/null 2>&1; then
-    log "docker compose v2 доступен"
-else
-    log "Устанавливаем docker-compose-v2"
-    # решаем конфликт с docker-compose-plugin
-    apt install -y --allow-downgrades --allow-remove-essential --allow-change-held-packages \
-        docker-compose-v2 || warn "docker-compose-v2 не установлен, возможно уже есть плагин"
+    # Add the repository to Apt sources:
+    CODENAME=${UBUNTU_CODENAME:-$VERSION_CODENAME}
+    sudo tee /etc/apt/sources.list.d/docker.sources <<EOF
+Types: deb
+URIs: https://download.docker.com/linux/$ID
+Suites: $CODENAME
+Components: stable
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+
+    sudo apt update
+
+    sudo apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 fi
 
 #################################
