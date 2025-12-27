@@ -14,7 +14,7 @@ warn() { echo -e "\033[1;33m[WARN]\033[0m $1"; }
 
 [[ $EUID -eq 0 ]] || { echo "Запускать нужно от root"; exit 1; }
 
-read -r -p "Вы уверены, что хотите удалить? (y/N): " answer
+read -r -p "Вы уверены, что хотите удалить? (y/n): " answer
 
 case "$answer" in
   y|Y)

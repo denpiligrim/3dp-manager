@@ -15,6 +15,12 @@ die() { echo -e "\033[1;31m[ERROR]\033[0m $1"; exit 1; }
 
 [[ $EUID -eq 0 ]] || die "Запускать нужно от root"
 
+# Check OS and set release variable
+. /etc/os-release
+if [[ "$ID" != "ubuntu" && "$ID" != "debian" ]]; then
+    die "Этот скрипт поддерживает только Ubuntu или Debian: $ID"
+fi
+
 #################################
 # ASCII-баннер
 #################################
@@ -292,19 +298,33 @@ log "Проверка Docker"
 if command -v docker >/dev/null 2>&1; then
     log "Docker уже установлен"
 else
-    log "Docker не найден, будет установлен"
+    log "Docker не найден, будет установлен из официального репозитория"
+    # Add Docker's official GPG key:
     apt update
-    apt install -y docker.io || die "Ошибка установки docker.io"
-    systemctl enable docker
-    systemctl restart docker
-fi
+    apt install ca-certificates curl
+    install -m 0755 -d /etc/apt/keyrings
+    if [[ "$ID" == "ubuntu" ]]; then
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc || die "Ошибка добавления ключа Docker"
+    else
+        curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc || die "Ошибка добавления ключа Docker"
+    fi
+    chmod a+r /etc/apt/keyrings/docker.asc
 
-if docker compose version >/dev/null 2>&1; then
-    log "docker compose v2 доступен"
-else
-    log "Устанавливаем docker-compose-v2"
-    apt install -y --allow-downgrades --allow-remove-essential --allow-change-held-packages \
-        docker-compose-v2 || warn "docker-compose-v2 не установлен, возможно уже есть плагин"
+    # Add the repository to Apt sources:
+    CODENAME=${UBUNTU_CODENAME:-$VERSION_CODENAME}
+    tee /etc/apt/sources.list.d/docker.sources <<EOF
+Types: deb
+URIs: https://download.docker.com/linux/$ID
+Suites: $CODENAME
+Components: stable
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
+
+    apt update
+
+    apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    systemctl enable docker
+    systemctl start docker
 fi
 
 #################################

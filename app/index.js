@@ -76,7 +76,10 @@ async function getFreePort(used) {
   while (true) {
     const p = Math.floor(Math.random() * (60000 - 10000)) + 10000;
     if (used.has(p)) continue;
-    if (await isPortFree(p)) return p;
+    if (await isPortFree(p)) {
+      used.add(p);
+      return p;
+    }
   }
 }
 
@@ -187,8 +190,7 @@ async function rotate() {
 
   for (const b of builders) {
     const domain = pickDomain(whitelist);
-    const inbound = await b(domain);
-    usedPorts.add(inbound.port);
+    const inbound = await b(domain);    
     const idOrPass = inbound.settings ? JSON.parse(inbound.settings).clients?.[0]?.id || JSON.parse(inbound.settings).clients?.[0]?.password : "";
 
     // Build the link depending on the protocol
@@ -210,8 +212,15 @@ async function rotate() {
 // Initial run
 rotate();
 
-let interval = parseInt(process.env.ROTATE_INTERVAL) || 30;
-if (interval < 10) interval = 10;
+let interval = parseInt(process.env.ROTATE_INTERVAL, 10);
 
-const cronExpression = `*/${interval} * * * *`;
-cron.schedule(cronExpression, rotate);
+if (isNaN(interval) || interval < 10) {
+  console.warn('⚠ Интервал некорректен или меньше 10 минут. Используется значение по умолчанию 30 минут.');
+  interval = 30;
+}
+
+const intervalMs = interval * 60 * 1000;
+
+console.log(`✔ Интервал ротации установлен: ${interval} минут`);
+
+setInterval(rotate, intervalMs);

@@ -2,7 +2,7 @@
 
 <p><img src="https://denpiligrim.ru/storage/images/3dp-manager.png" alt="3dp-manager preview"></p>
 
-![Version](https://img.shields.io/badge/version-1.0-blue.svg) [![License](https://img.shields.io/badge/license-GPL%20V3-blue.svg?longCache=true)](https://www.gnu.org/licenses/gpl-3.0) [![Telegram](https://img.shields.io/badge/Telegram-26A5E4?style=flat&logo=telegram&logoColor=white)](https://t.me/denpiligrim_web) [![YouTube Channel Subscribers](https://img.shields.io/youtube/channel/subscribers/UCOv2tFFYDY4mXOM60PVz8zw)](https://www.youtube.com/@denpiligrim)
+![Version](https://img.shields.io/badge/version-1.0.1-blue.svg) [![License](https://img.shields.io/badge/license-GPL%20V3-blue.svg?longCache=true)](https://www.gnu.org/licenses/gpl-3.0) [![Telegram](https://img.shields.io/badge/Telegram-26A5E4?style=flat&logo=telegram&logoColor=white)](https://t.me/denpiligrim_web) [![YouTube Channel Subscribers](https://img.shields.io/youtube/channel/subscribers/UCOv2tFFYDY4mXOM60PVz8zw)](https://www.youtube.com/@denpiligrim)
 
 # 3DP-MANAGER
 
@@ -10,11 +10,13 @@
 
 **Поддержать проект**
 
-- Реквизиты / донаты:
+- Банковским переводом:
 	- Карта МИР: `2204320436318077`
 	- Карта MasterCard: `5395452209474530`
+- На электронный кошелек:
 	- ЮМоney: `4100116897060652`
 	- PayPal: `vasiljevdenisx@gmail.com`
+- Криптовалютой:
 	- USDT | ETH (ERC20 | BEP20): `0x6fe140040f6Cdc1E1Ff2136cd1d60C0165809463`
 	- USDT | TRX (TRC20): `TEWxXmJxvkAmhshp7E61XJGHB3VyM9hNAb`
 	- Bitcoin: `bc1qctntwncsv2yn02x2vgnkrqm00c4h04c0afkgpl`
@@ -32,7 +34,7 @@
 
 Все подключения объединяются в одну подписку со статичным URL. Бот работает с панелью `3x-ui` и не вмешивается в её работу напрямую, используя открытое API панели.
 
-Вторичная цель — стабильность подключения: клиент получает 10 вариантов поключений и может выбрать любое из них.
+Вторичная цель — стабильность подключения: клиент получает 10 вариантов подключений и может выбрать любое из них.
 
 Дополнительно: бот можно использовать в каскадной схеме. Сервис перенаправления автоматически настроит переадресацию подписки и трафика к основному серверу.
 
@@ -51,14 +53,15 @@
 
 ## Требования
 
-- Ubuntu 20.04 (и выше)
-- Панель `3x-ui`
+- Ubuntu 20.04 (и выше), Debian 12.11 (и выше)
+- Панель `3x-ui` v2.8.4 (и выше)
 - Домен + SSL сертификат (опционально)
 
 ---
 
 ## Установка
 
+У вас должны быть установлены пакеты на сервере `curl`, `jq` командой: `apt install curl jq` и панель управления `3x-ui`, которую можно установить командой: `bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)`
 Установите проект на сервер командой:
 
 ```bash
@@ -90,6 +93,9 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main
 ---
 
 ## Установка сервиса перенаправления (forwarding)
+
+> [!WARNING]  
+> Сервис перенаправления работает на промежуточном сервере.
 
 Сервис перенаправления позволяет проксировать входящие порты с промежуточного сервера на основной.
 
@@ -127,7 +133,7 @@ cd /opt/3dp-manager && docker compose exec node env | grep SUB_URL | cut -d'=' -
 node get_domains.js
 ```
 
-<small>Краткое описание: добавьте ссылку на мульти-подписку в скрипт и запустите команду — на выходе получите список доменов. Неободим `Node.js` для работы скрипта.</small>
+<small>Краткое описание: добавьте ссылку на мульти-подписку в скрипт и запустите команду — на выходе получите список доменов. Необходим `Node.js` для работы скрипта.</small>
 
 ## Использование собственного белого списка
 
@@ -138,7 +144,7 @@ node get_domains.js
 cd /opt/3dp-manager && docker cp ./app/my_whitelist.txt node:/app/my_whitelist.txt
 ```
 
-<small>Краткое описание: добавляет ваш файл доменов в контейнер приложения. Чтобы сразу же сгенерировать инбаунды с новыи списком, выполните `docker exec -it node sh` и затем `node index.js`.</small>
+<small>Краткое описание: добавляет ваш файл доменов в контейнер приложения. Чтобы сразу же сгенерировать инбаунды с новым списком, выполните `docker exec -it node sh` и затем `node index.js`.</small>
 
 ---
 
