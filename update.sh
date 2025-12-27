@@ -19,7 +19,7 @@ need_root() {
 
 if ! command -v curl >/dev/null 2>&1; then
   echo "❌ curl не установлен. Установите curl и повторите попытку"
-  echo "   sudo apt install -y curl"
+  echo "   apt install -y curl"
   exit 1
 fi
 

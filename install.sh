@@ -88,7 +88,7 @@ echo
 # Check login
 if ! command -v curl >/dev/null 2>&1; then
   echo "❌ curl не установлен. Установите curl и повторите попытку"
-  echo "   sudo apt install -y curl"
+  echo "   apt install -y curl"
   exit 1
 fi
 
@@ -156,7 +156,7 @@ IP_JSON=$(curl -s --fail http://ip-api.com/json/ || true)
 
 if ! command -v jq >/dev/null 2>&1; then
     echo "❌ Не найден jq. Для работы скрипта необходимо установить jq."
-    echo "   sudo apt install -y jq"
+    echo "   apt install -y jq"
     exit 1
 fi
 
@@ -197,19 +197,19 @@ if command -v docker >/dev/null 2>&1; then
 else
     log "Docker не найден, будет установлен из официального репозитория"
     # Add Docker's official GPG key:
-    sudo apt update
-    sudo apt install ca-certificates curl
-    sudo install -m 0755 -d /etc/apt/keyrings
+    apt update
+    apt install ca-certificates curl
+    install -m 0755 -d /etc/apt/keyrings
     if [[ "$ID" == "ubuntu" ]]; then
         curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc || die "Ошибка добавления ключа Docker"
     else
         curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc || die "Ошибка добавления ключа Docker"
     fi
-    sudo chmod a+r /etc/apt/keyrings/docker.asc
+    chmod a+r /etc/apt/keyrings/docker.asc
 
     # Add the repository to Apt sources:
     CODENAME=${UBUNTU_CODENAME:-$VERSION_CODENAME}
-    sudo tee /etc/apt/sources.list.d/docker.sources <<EOF
+    tee /etc/apt/sources.list.d/docker.sources <<EOF
 Types: deb
 URIs: https://download.docker.com/linux/$ID
 Suites: $CODENAME
@@ -217,9 +217,9 @@ Components: stable
 Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 
-    sudo apt update
+    apt update
 
-    sudo apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
     systemctl enable docker
     systemctl start docker
 fi
@@ -380,6 +380,18 @@ http {
   }
 }
 EOF
+fi
+
+# ufw
+if LC_ALL=C ufw status 2>/dev/null | grep -q "Status: active"; then
+    echo "UFW найден и активен. Открываем порты..."
+    ufw allow 443/tcp
+    ufw allow 443/udp
+    ufw allow 8443/tcp
+    ufw allow 8443/udp
+    ufw allow "$NGINX_PORT"/tcp
+    ufw allow 10000:60000/tcp
+    ufw allow 10000:60000/udp
 fi
 
 #################################

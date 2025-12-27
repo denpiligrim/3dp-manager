@@ -300,19 +300,19 @@ if command -v docker >/dev/null 2>&1; then
 else
     log "Docker не найден, будет установлен из официального репозитория"
     # Add Docker's official GPG key:
-    sudo apt update
-    sudo apt install ca-certificates curl
-    sudo install -m 0755 -d /etc/apt/keyrings
+    apt update
+    apt install ca-certificates curl
+    install -m 0755 -d /etc/apt/keyrings
     if [[ "$ID" == "ubuntu" ]]; then
         curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc || die "Ошибка добавления ключа Docker"
     else
         curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc || die "Ошибка добавления ключа Docker"
     fi
-    sudo chmod a+r /etc/apt/keyrings/docker.asc
+    chmod a+r /etc/apt/keyrings/docker.asc
 
     # Add the repository to Apt sources:
     CODENAME=${UBUNTU_CODENAME:-$VERSION_CODENAME}
-    sudo tee /etc/apt/sources.list.d/docker.sources <<EOF
+    tee /etc/apt/sources.list.d/docker.sources <<EOF
 Types: deb
 URIs: https://download.docker.com/linux/$ID
 Suites: $CODENAME
@@ -320,9 +320,9 @@ Components: stable
 Signed-By: /etc/apt/keyrings/docker.asc
 EOF
 
-    sudo apt update
+    apt update
 
-    sudo apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+    apt install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
     systemctl enable docker
     systemctl start docker
 fi

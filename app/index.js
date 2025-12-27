@@ -76,7 +76,10 @@ async function getFreePort(used) {
   while (true) {
     const p = Math.floor(Math.random() * (60000 - 10000)) + 10000;
     if (used.has(p)) continue;
-    if (await isPortFree(p)) return p;
+    if (await isPortFree(p)) {
+      used.add(inbound.port);
+      return p;
+    }
   }
 }
 
@@ -187,8 +190,7 @@ async function rotate() {
 
   for (const b of builders) {
     const domain = pickDomain(whitelist);
-    const inbound = await b(domain);
-    usedPorts.add(inbound.port);
+    const inbound = await b(domain);    
     const idOrPass = inbound.settings ? JSON.parse(inbound.settings).clients?.[0]?.id || JSON.parse(inbound.settings).clients?.[0]?.password : "";
 
     // Build the link depending on the protocol
