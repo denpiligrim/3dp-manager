@@ -17,7 +17,7 @@ need_root() {
   [[ $EUID -eq 0 ]] || die "Запускать только от root"
 }
 
-read -r -p "Вы уверены, что хотите удалить? (y/N): " answer
+read -r -p "Вы уверены, что хотите удалить? (y/n): " answer
 
 case "$answer" in
   y|Y)
