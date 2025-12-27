@@ -61,7 +61,7 @@
 在服务器上运行以下命令安装项目：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix/install.sh)
 ```
 
 <small>简要说明：运行安装脚本并部署容器和服务。</small>
@@ -71,7 +71,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main
 更新到最新版本：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/update.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix/update.sh)
 ```
 
 <small>简要说明：拉取最新更改并重启容器。</small>
@@ -81,7 +81,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main
 彻底删除服务：
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/delete.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix/delete.sh)
 ```
 
 <small>简要说明：删除容器和配置文件，恢复到安装前状态。</small>
@@ -93,7 +93,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main
 转发服务允许将中继服务器的入站端口代理到主服务器。
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/forwarding_install.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix/forwarding_install.sh)
 ```
 
 <small>简要说明：添加转发规则并创建用于更新订阅的服务。</small>
@@ -101,7 +101,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main
 ## 删除转发
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/forwarding_delete.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/dp-fix/forwarding_delete.sh)
 ```
 
 <small>简要说明：删除规则并禁用转发服务。</small>
