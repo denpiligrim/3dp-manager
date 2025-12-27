@@ -2,7 +2,7 @@
 
 <p><img src="https://denpiligrim.ru/storage/images/3dp-manager.png" alt="3dp-manager preview"></p>
 
-![Version](https://img.shields.io/badge/version-1.0-blue.svg) [![License](https://img.shields.io/badge/license-GPL%20V3-blue.svg?longCache=true)](https://www.gnu.org/licenses/gpl-3.0) [![Telegram](https://img.shields.io/badge/Telegram-26A5E4?style=flat&logo=telegram&logoColor=white)](https://t.me/denpiligrim_web) [![YouTube Channel Subscribers](https://img.shields.io/youtube/channel/subscribers/UCOv2tFFYDY4mXOM60PVz8zw)](https://www.youtube.com/@denpiligrim)
+![Version](https://img.shields.io/badge/version-1.0.1-blue.svg) [![License](https://img.shields.io/badge/license-GPL%20V3-blue.svg?longCache=true)](https://www.gnu.org/licenses/gpl-3.0) [![Telegram](https://img.shields.io/badge/Telegram-26A5E4?style=flat&logo=telegram&logoColor=white)](https://t.me/denpiligrim_web) [![YouTube Channel Subscribers](https://img.shields.io/youtube/channel/subscribers/UCOv2tFFYDY4mXOM60PVz8zw)](https://www.youtube.com/@denpiligrim)
 
 # 3DP-MANAGER
 
@@ -10,11 +10,13 @@
 
 **Поддержать проект**
 
-- Реквизиты / донаты:
+- Банковским переводом:
 	- Карта МИР: `2204320436318077`
 	- Карта MasterCard: `5395452209474530`
+- На электронный кошелек:
 	- ЮМоney: `4100116897060652`
 	- PayPal: `vasiljevdenisx@gmail.com`
+- Криптовалютой:
 	- USDT | ETH (ERC20 | BEP20): `0x6fe140040f6Cdc1E1Ff2136cd1d60C0165809463`
 	- USDT | TRX (TRC20): `TEWxXmJxvkAmhshp7E61XJGHB3VyM9hNAb`
 	- Bitcoin: `bc1qctntwncsv2yn02x2vgnkrqm00c4h04c0afkgpl`
@@ -51,14 +53,15 @@
 
 ## Требования
 
-- Ubuntu 20.04 (и выше)
-- Панель `3x-ui`
+- Ubuntu 20.04 (и выше), Debian 12.11 (и выше)
+- Панель `3x-ui` v2.8.4 (и выше)
 - Домен + SSL сертификат (опционально)
 
 ---
 
 ## Установка
 
+У вас должны быть установлены пакеты на сервере: `curl`, `jq` и панель управления `3x-ui`, которую можно установить командой: `bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)`
 Установите проект на сервер командой:
 
 ```bash
