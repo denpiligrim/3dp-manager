@@ -77,7 +77,7 @@ async function getFreePort(used) {
     const p = Math.floor(Math.random() * (60000 - 10000)) + 10000;
     if (used.has(p)) continue;
     if (await isPortFree(p)) {
-      used.add(inbound.port);
+      used.add(p);
       return p;
     }
   }
