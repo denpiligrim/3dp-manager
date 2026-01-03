@@ -31,6 +31,8 @@ if [[ "$ID" != "ubuntu" && "$ID" != "debian" ]]; then
     die "Этот скрипт поддерживает только Ubuntu или Debian: $ID"
 fi
 
+REMOTE_PANEL=${REMOTE_PANEL:-false}
+
 if [[ "$REMOTE_PANEL" != "true" ]]; then
     if ! x-ui status >/dev/null 2>&1; then
         echo "❌ Панель 3x-ui не найдена или не работает."

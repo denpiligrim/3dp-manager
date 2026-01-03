@@ -69,6 +69,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main
 ```
 
 <sup>Краткое описание: запускает скрипт установки и разворачивает контейнеры и сервисы.</sup>
+
 Если панель 3x-ui находится в Docker контейнере или на другом сервере, установите командой:
 
 ```bash
