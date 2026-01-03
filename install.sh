@@ -63,6 +63,11 @@ echo ""
 #################################
 # Function to get panel URL from 3x-ui
 get_xui_url() {
+  if [[ "$REMOTE_PANEL" == "true" ]]; then
+        echo ""
+        return
+  fi
+
     local output=$(x-ui settings 2>/dev/null || true)
 
     echo "$output" | sed 's/\x1b\[[0-9;]*m//g' | grep "Access URL:" | grep -oE 'https?://[^[:space:]]+' | head -n1 || true
