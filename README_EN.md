@@ -64,7 +64,7 @@ Install the project on your server with:
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/install.sh)
 ```
 
-<small>Short description: runs the installer script and deploys containers and services.</small>
+<sup>Short description: runs the installer script and deploys containers and services.</sup>
 
 ## Update
 
@@ -74,7 +74,7 @@ Update to the latest version:
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/update.sh)
 ```
 
-<small>Short description: pulls the latest changes and restarts containers.</small>
+<sup>Short description: pulls the latest changes and restarts containers.</sup>
 
 ## Removal
 
@@ -84,7 +84,7 @@ Remove the service completely:
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/delete.sh)
 ```
 
-<small>Short description: removes containers and configuration files, restoring the system to the pre-install state.</small>
+<sup>Short description: removes containers and configuration files, restoring the system to the pre-install state.</sup>
 
 ---
 
@@ -96,7 +96,7 @@ The forwarding service allows proxying incoming ports from the intermediate serv
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/forwarding_install.sh)
 ```
 
-<small>Short description: adds forwarding rules and creates a service to update the subscription.</small>
+<sup>Short description: adds forwarding rules and creates a service to update the subscription.</sup>
 
 ## Remove forwarding
 
@@ -104,7 +104,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/forwarding_delete.sh)
 ```
 
-<small>Short description: removes rules and disables the forwarding service.</small>
+<sup>Short description: removes rules and disables the forwarding service.</sup>
 
 ---
 
@@ -116,7 +116,7 @@ Command to print the current subscription URL from the container environment:
 cd /opt/3dp-manager && docker compose exec node env | grep SUB_URL | cut -d'=' -f2
 ```
 
-<small>Short description: prints the static subscription URL that can be used in clients. Works on both main and intermediate servers.</small>
+<sup>Short description: prints the static subscription URL that can be used in clients. Works on both main and intermediate servers.</sup>
 
 ## Collect domains from multi-subscriptions
 
@@ -126,7 +126,7 @@ The utility extracts domains from subscriptions and builds a `whitelist` for the
 node get_domains.js
 ```
 
-<small>Short description: add a multi-subscription link to the script and run the command — the output will be a list of domains. `Node.js` is required to run the script.</small>
+<sup>Short description: add a multi-subscription link to the script and run the command — the output will be a list of domains. `Node.js` is required to run the script.</sup>
 
 ## Use your own whitelist
 
@@ -137,7 +137,7 @@ node get_domains.js
 cd /opt/3dp-manager && docker cp ./app/my_whitelist.txt node:/app/my_whitelist.txt
 ```
 
-<small>Short description: adds your domain file into the application container.</small>
+<sup>Short description: adds your domain file into the application container.</sup>
 
 ---
 
@@ -157,7 +157,7 @@ Contributions are welcome! Simple contributor workflow:
 4. Run local checks if available.
 5. Push the branch to your fork and create a Pull Request to the main repository.
 
-<small>Tips: describe changes and testing steps in the PR. For large changes, split into smaller commits.</small>
+<sup>Tips: describe changes and testing steps in the PR. For large changes, split into smaller commits.</sup>
 
 ---
 

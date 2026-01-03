@@ -64,7 +64,7 @@
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/install.sh)
 ```
 
-<small>简要说明：运行安装脚本并部署容器和服务。</small>
+<sup>简要说明：运行安装脚本并部署容器和服务。</sup>
 
 ## 更新
 
@@ -74,7 +74,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/update.sh)
 ```
 
-<small>简要说明：拉取最新更改并重启容器。</small>
+<sup>简要说明：拉取最新更改并重启容器。</sup>
 
 ## 删除
 
@@ -84,7 +84,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/delete.sh)
 ```
 
-<small>简要说明：删除容器和配置文件，恢复到安装前状态。</small>
+<sup>简要说明：删除容器和配置文件，恢复到安装前状态。</sup>
 
 ---
 
@@ -96,7 +96,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/forwarding_install.sh)
 ```
 
-<small>简要说明：添加转发规则并创建用于更新订阅的服务。</small>
+<sup>简要说明：添加转发规则并创建用于更新订阅的服务。</sup>
 
 ## 删除转发
 
@@ -104,7 +104,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/forwarding_delete.sh)
 ```
 
-<small>简要说明：删除规则并禁用转发服务。</small>
+<sup>简要说明：删除规则并禁用转发服务。</sup>
 
 ---
 
@@ -116,7 +116,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main
 cd /opt/3dp-manager && docker compose exec node env | grep SUB_URL | cut -d'=' -f2
 ```
 
-<small>简要说明：打印可在客户端使用的静态订阅 URL，适用于主服务器和中继服务器。</small>
+<sup>简要说明：打印可在客户端使用的静态订阅 URL，适用于主服务器和中继服务器。</sup>
 
 ## 从多订阅收集域名
 
@@ -126,7 +126,7 @@ cd /opt/3dp-manager && docker compose exec node env | grep SUB_URL | cut -d'=' -
 node get_domains.js
 ```
 
-<small>简要说明：在脚本中添加多订阅链接并运行命令 — 输出为域名列表。运行脚本需要 `Node.js`。</small>
+<sup>简要说明：在脚本中添加多订阅链接并运行命令 — 输出为域名列表。运行脚本需要 `Node.js`。</sup>
 
 ## 使用自定义白名单
 
@@ -137,7 +137,7 @@ node get_domains.js
 cd /opt/3dp-manager && docker cp ./app/my_whitelist.txt node:/app/my_whitelist.txt
 ```
 
-<small>简要说明：将您的域名文件添加到应用容器中。</small>
+<sup>简要说明：将您的域名文件添加到应用容器中。</sup>
 
 ---
 
@@ -157,7 +157,7 @@ cd /opt/3dp-manager && docker cp ./app/my_whitelist.txt node:/app/my_whitelist.t
 4. 在本地运行检查（如有）。
 5. 推送分支到您的 fork 并创建 Pull Request。
 
-<small>建议：在 PR 中说明更改和测试步骤；较大更改请拆成小提交。</small>
+<sup>建议：在 PR 中说明更改和测试步骤；较大更改请拆成小提交。</sup>
 
 ---
 

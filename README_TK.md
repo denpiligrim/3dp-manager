@@ -64,7 +64,7 @@ Taslamany serwera gurnamak üçin şu komandany ýerine ýetiriň:
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/install.sh)
 ```
 
-<small>Gysgaça: gurnama skripti işledilýär we konteýnerler we hyzmatlar döredilýär.</small>
+<sup>Gysgaça: gurnama skripti işledilýär we konteýnerler we hyzmatlar döredilýär.</sup>
 
 ## Täzelik
 
@@ -74,7 +74,7 @@ Soňky wersiýa çenli täzeläň:
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/update.sh)
 ```
 
-<small>Gysgaça: iň soňky üýtgeşmeleri çekýär we konteýnerleri gaýtadan işledýär.</small>
+<sup>Gysgaça: iň soňky üýtgeşmeleri çekýär we konteýnerleri gaýtadan işledýär.</sup>
 
 ## Pozmak
 
@@ -84,7 +84,7 @@ Hyzmaty doly pozmak üçin:
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/delete.sh)
 ```
 
-<small>Gysgaça: konteýnerleri we konfigurasiýa faýllaryny pozup, systemany gurnamadan öňki ýagdaýyna getirer.</small>
+<sup>Gysgaça: konteýnerleri we konfigurasiýa faýllaryny pozup, systemany gurnamadan öňki ýagdaýyna getirer.</sup>
 
 ---
 
