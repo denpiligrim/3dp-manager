@@ -285,6 +285,7 @@ curl -fsSL "$REPO_BASE/app/package.json" -o app/package.json
 # JS Files
 #################################
 curl -fsSL "$REPO_BASE/app/index.js" -o app/index.js
+curl -fsSL "$REPO_BASE/app/rotate.js" -o app/rotate.js
 curl -fsSL "$REPO_BASE/app/builders/buildVlessRealityTcp.js" -o app/builders/buildVlessRealityTcp.js
 curl -fsSL "$REPO_BASE/app/builders/buildVlessRealityXhttp.js" -o app/builders/buildVlessRealityXhttp.js
 curl -fsSL "$REPO_BASE/app/builders/buildTrojanRealityTcp.js" -o app/builders/buildTrojanRealityTcp.js
