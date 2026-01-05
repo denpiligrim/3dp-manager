@@ -214,16 +214,3 @@ async function rotate() {
 
 // Initial run
 rotate();
-
-let interval = parseInt(process.env.ROTATE_INTERVAL, 10);
-
-if (isNaN(interval) || interval < 10) {
-  console.warn('⚠ Интервал некорректен или меньше 10 минут. Используется значение по умолчанию 30 минут.');
-  interval = 30;
-}
-
-const intervalMs = interval * 60 * 1000;
-
-console.log(`✔ Интервал ротации установлен: ${interval} минут`);
-
-setInterval(rotate, intervalMs);

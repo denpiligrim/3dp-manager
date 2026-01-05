@@ -80,6 +80,11 @@ docker compose build node
 log "Перезапускаем контейнеры"
 docker compose up -d
 
+if [ -f "app/my_whitelist.txt" ]; then
+    log "✔ Копируем my_whitelist.txt в контейнер..."
+    docker cp app/my_whitelist.txt node:/app/my_whitelist.txt
+fi
+
 #################################
 # HEALTH CHECK
 #################################

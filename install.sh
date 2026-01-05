@@ -31,14 +31,17 @@ if [[ "$ID" != "ubuntu" && "$ID" != "debian" ]]; then
     die "Этот скрипт поддерживает только Ubuntu или Debian: $ID"
 fi
 
-if ! x-ui status >/dev/null 2>&1; then
-    echo "❌ Панель 3x-ui не найдена или не работает."
-    echo "   Чтобы установить, выполните:"
-    echo "bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)"
-    exit 1
-fi
+REMOTE_PANEL=${REMOTE_PANEL:-false}
 
-echo "✔ Панель 3x-ui найдена и работает"
+if [[ "$REMOTE_PANEL" != "true" ]]; then
+    if ! x-ui status >/dev/null 2>&1; then
+        echo "❌ Панель 3x-ui не найдена или не работает."
+        echo "   Чтобы установить, выполните:"
+        echo "   bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)"
+        exit 1
+    fi
+    echo "✔ Панель 3x-ui найдена и работает"
+fi
 
 #################################
 # ASCII-баннер
@@ -60,6 +63,11 @@ echo ""
 #################################
 # Function to get panel URL from 3x-ui
 get_xui_url() {
+  if [[ "$REMOTE_PANEL" == "true" ]]; then
+        echo ""
+        return
+  fi
+
     local output=$(x-ui settings 2>/dev/null || true)
 
     echo "$output" | sed 's/\x1b\[[0-9;]*m//g' | grep "Access URL:" | grep -oE 'https?://[^[:space:]]+' | head -n1 || true
@@ -83,6 +91,9 @@ echo "URL панели 3x-ui: $UI_URL"
 read -rp "Логин 3x-ui: " UI_LOGIN
 read -rsp "Пароль 3x-ui: " UI_PASSWORD
 echo
+
+UI_LOGIN=$(echo "$UI_LOGIN" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
+UI_PASSWORD=$(echo "$UI_PASSWORD" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
 [[ -z "$UI_LOGIN" || -z "$UI_PASSWORD" ]] && die "Логин/пароль обязательны"
 
 # Check login
@@ -92,7 +103,7 @@ if ! command -v curl >/dev/null 2>&1; then
   exit 1
 fi
 
-LOGIN_RESPONSE=$(curl -s -X POST "$UI_URL/login" -H "Content-Type: application/json" -d "{\"username\":\"$UI_LOGIN\",\"password\":\"$UI_PASSWORD\"}" || true)
+LOGIN_RESPONSE=$(curl -s -k --connect-timeout 10 -X POST "$UI_URL/login" -H "Content-Type: application/json" -d "{\"username\":\"$UI_LOGIN\",\"password\":\"$UI_PASSWORD\"}" || true)
 
 if ! echo "$LOGIN_RESPONSE" | grep -q '"success":true'; then
   echo "Не удалось залогиниться в 3x-ui. Проверьте URL, логин и пароль."
@@ -117,8 +128,8 @@ if [[ "$UI_PROTO" == "https" ]]; then
     log "Найдены сертификаты Let's Encrypt для $UI_HOST"
   else
     log "⚠ Сертификаты Let's Encrypt для $UI_HOST не найдены"
-    read -rp "Введите полный путь к SSL сертификату (fullchain.pem): " CERT_PATH
-    read -rp "Введите полный путь к SSL ключу (privkey.pem): " KEY_PATH
+    read -rp "Введите полный путь к сертификату (публичный ключ): " CERT_PATH
+    read -rp "Введите полный путь к ключу (приватный ключ): " KEY_PATH
 
     [[ -f "$CERT_PATH" ]] || die "Файл сертификата не найден: $CERT_PATH"
     [[ -f "$KEY_PATH" ]]  || die "Файл ключа не найден: $KEY_PATH"
@@ -274,6 +285,7 @@ curl -fsSL "$REPO_BASE/app/package.json" -o app/package.json
 # JS Files
 #################################
 curl -fsSL "$REPO_BASE/app/index.js" -o app/index.js
+curl -fsSL "$REPO_BASE/app/rotate.js" -o app/rotate.js
 curl -fsSL "$REPO_BASE/app/builders/buildVlessRealityTcp.js" -o app/builders/buildVlessRealityTcp.js
 curl -fsSL "$REPO_BASE/app/builders/buildVlessRealityXhttp.js" -o app/builders/buildVlessRealityXhttp.js
 curl -fsSL "$REPO_BASE/app/builders/buildTrojanRealityTcp.js" -o app/builders/buildTrojanRealityTcp.js

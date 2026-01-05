@@ -2,7 +2,7 @@
 
 <p><img src="https://denpiligrim.ru/storage/images/3dp-manager.png" alt="3dp-manager preview"></p>
 
-![Version](https://img.shields.io/badge/version-1.0.1-blue.svg) [![License](https://img.shields.io/badge/license-GPL%20V3-blue.svg?longCache=true)](https://www.gnu.org/licenses/gpl-3.0) [![Telegram](https://img.shields.io/badge/Telegram-26A5E4?style=flat&logo=telegram&logoColor=white)](https://t.me/denpiligrim_web) [![YouTube Channel Subscribers](https://img.shields.io/youtube/channel/subscribers/UCOv2tFFYDY4mXOM60PVz8zw)](https://www.youtube.com/@denpiligrim)
+![Version](https://img.shields.io/badge/version-1.0.2-blue.svg) [![License](https://img.shields.io/badge/license-GPL%20V3-blue.svg?longCache=true)](https://www.gnu.org/licenses/gpl-3.0) [![Telegram](https://img.shields.io/badge/Telegram-26A5E4?style=flat&logo=telegram&logoColor=white)](https://t.me/denpiligrim_web) [![YouTube Channel Subscribers](https://img.shields.io/youtube/channel/subscribers/UCOv2tFFYDY4mXOM60PVz8zw)](https://www.youtube.com/@denpiligrim)
 
 # 3DP-MANAGER
 
@@ -64,7 +64,7 @@
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/install.sh)
 ```
 
-<small>توضیح کوتاه: اسکریپت نصب را اجرا کرده و کانتینرها و سرویس‌ها را راه‌اندازی می‌کند.</small>
+<sup>توضیح کوتاه: اسکریپت نصب را اجرا کرده و کانتینرها و سرویس‌ها را راه‌اندازی می‌کند.</sup>
 
 ## به‌روزرسانی
 
@@ -74,7 +74,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/update.sh)
 ```
 
-<small>توضیح کوتاه: تغییرات جدید را می‌کشد و کانتینرها را ری‌استارت می‌کند.</small>
+<sup>توضیح کوتاه: تغییرات جدید را می‌کشد و کانتینرها را ری‌استارت می‌کند.</sup>
 
 ## حذف
 
@@ -84,7 +84,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/delete.sh)
 ```
 
-<small>توضیح کوتاه: کانتینرها و فایل‌های پیکربندی را حذف می‌کند و سیستم را به وضعیت پیش از نصب برمی‌گرداند.</small>
+<sup>توضیح کوتاه: کانتینرها و فایل‌های پیکربندی را حذف می‌کند و سیستم را به وضعیت پیش از نصب برمی‌گرداند.</sup>
 
 ---
 
@@ -96,7 +96,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/forwarding_install.sh)
 ```
 
-<small>توضیح کوتاه: قوانین فورواردینگ را اضافه کرده و سرویسی برای به‌روزرسانی اشتراک ایجاد می‌کند.</small>
+<sup>توضیح کوتاه: قوانین فورواردینگ را اضافه کرده و سرویسی برای به‌روزرسانی اشتراک ایجاد می‌کند.</sup>
 
 ## حذف فورواردینگ
 
@@ -104,7 +104,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/forwarding_delete.sh)
 ```
 
-<small>توضیح کوتاه: قوانین را حذف کرده و سرویس فورواردینگ را غیرفعال می‌کند.</small>
+<sup>توضیح کوتاه: قوانین را حذف کرده و سرویس فورواردینگ را غیرفعال می‌کند.</sup>
 
 ---
 
@@ -116,7 +116,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main
 cd /opt/3dp-manager && docker compose exec node env | grep SUB_URL | cut -d'=' -f2
 ```
 
-<small>توضیح کوتاه: URL ثابت اشتراک را نمایش می‌دهد که می‌توان در کلاینت‌ها استفاده کرد. هم در سرور اصلی و هم در سرور واسط کار می‌کند.</small>
+<sup>توضیح کوتاه: URL ثابت اشتراک را نمایش می‌دهد که می‌توان در کلاینت‌ها استفاده کرد. هم در سرور اصلی و هم در سرور واسط کار می‌کند.</sup>
 
 ## جمع‌آوری دامنه‌ها از چندین اشتراک
 
@@ -126,7 +126,7 @@ cd /opt/3dp-manager && docker compose exec node env | grep SUB_URL | cut -d'=' -
 node get_domains.js
 ```
 
-<small>توضیح کوتاه: لینک چندین اشتراک را در اسکریپت قرار داده و فرمان را اجرا کنید — خروجی فهرست دامنه‌ها خواهد بود. نیازمند `Node.js` است.</small>
+<sup>توضیح کوتاه: لینک چندین اشتراک را در اسکریپت قرار داده و فرمان را اجرا کنید — خروجی فهرست دامنه‌ها خواهد بود. نیازمند `Node.js` است.</sup>
 
 ## استفاده از whitelist شخصی
 
@@ -137,7 +137,7 @@ node get_domains.js
 cd /opt/3dp-manager && docker cp ./app/my_whitelist.txt node:/app/my_whitelist.txt
 ```
 
-<small>توضیح کوتاه: فایل دامنه شما را به کانتینر برنامه اضافه می‌کند.</small>
+<sup>توضیح کوتاه: فایل دامنه شما را به کانتینر برنامه اضافه می‌کند.</sup>
 
 ---
 
@@ -157,7 +157,7 @@ cd /opt/3dp-manager && docker cp ./app/my_whitelist.txt node:/app/my_whitelist.t
 4. در صورت وجود، بررسی‌های محلی را اجرا کنید.
 5. شاخه را به fork خود پوش کرده و Pull Request ایجاد کنید.
 
-<small>نکات: تغییرات را در PR شرح دهید و مراحل تست را بنویسید. در صورت تغییرات بزرگ، آنها را به کامیت‌های کوچک تقسیم کنید.</small>
+<sup>نکات: تغییرات را در PR شرح دهید و مراحل تست را بنویسید. در صورت تغییرات بزرگ، آنها را به کامیت‌های کوچک تقسیم کنید.</sup>
 
 ---
 
