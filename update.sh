@@ -56,6 +56,7 @@ mkdir -p app
 curl -fsSL "$REPO_RAW/app/Dockerfile"    -o app/Dockerfile
 curl -fsSL "$REPO_RAW/app/package.json"  -o app/package.json
 curl -fsSL "$REPO_RAW/app/index.js"      -o app/index.js
+curl -fsSL "$REPO_RAW/app/rotate.js"      -o app/rotate.js
 curl -fsSL "$REPO_RAW/app/builders/buildVlessRealityTcp.js" -o app/builders/buildVlessRealityTcp.js
 curl -fsSL "$REPO_RAW/app/builders/buildVlessRealityXhttp.js" -o app/builders/buildVlessRealityXhttp.js
 curl -fsSL "$REPO_RAW/app/builders/buildTrojanRealityTcp.js" -o app/builders/buildTrojanRealityTcp.js
