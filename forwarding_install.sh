@@ -160,6 +160,7 @@ EOF
 cat > node/index.js <<'EOF'
 import express from "express";
 import axios from "axios";
+import https from "https";
 
 const app = express();
 
@@ -167,11 +168,14 @@ const {
   ORIGIN_SUB_URL,
   LOCAL_HOST
 } = process.env;
+const agent = new https.Agent({
+  rejectUnauthorized: false
+});
 
 app.get("/bus/:token", async (req, res) => {
   try {
     const url = ORIGIN_SUB_URL;
-    const r = await axios.get(url, { timeout: 15000 });
+    const r = await axios.get(url, { timeout: 15000, httpsAgent: agent });
     let data = r.data;
 
     // vmess base64
