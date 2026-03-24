@@ -471,10 +471,10 @@ fi
 #################################
 log "Сборка и запуск контейнеров..."
 # Останавливаем старые, если были
-docker compose down || true
+docker-compose down || true
 
 # Запускаем сборку и старт
-docker compose up --build -d --remove-orphans
+docker-compose up --build -d --remove-orphans
 
 log "Очистка кэша сборки..."
 docker image prune -f
