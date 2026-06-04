@@ -82,6 +82,11 @@ export class InboundConfigDto {
   @IsString()
   @IsOptional()
   keyFile?: string;
+
+  // ⬇️ НОВОЕ ПОЛЕ ДЛЯ HAPP ROUTING ⬇️
+  @IsString()
+  @IsOptional()
+  routingProfile?: string;
 }
 
 export class CreateSubscriptionDto {

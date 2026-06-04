@@ -40,6 +40,7 @@ export class Subscription {
     name?: string;
     certificateFile?: string;
     keyFile?: string;
+    routingProfile?: string;
   }>;
 
   @Column({ nullable: true })

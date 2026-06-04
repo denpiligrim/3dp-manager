@@ -257,6 +257,7 @@ export class RotationService implements OnModuleInit {
         sni = config.sni === 'random' ? this.pickDomain(domains) : config.sni;
       }
 
+      
       // === 2. Обработка Hysteria2 ===
       if (type === 'hysteria2-udp') {
         let port = 0;

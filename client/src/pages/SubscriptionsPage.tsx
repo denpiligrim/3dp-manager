@@ -83,6 +83,7 @@ interface InboundConfigUI {
   name?: string;
   certificateFile?: string;
   keyFile?: string;
+  routingProfile?: string;
 }
 
 interface Domain {
@@ -106,6 +107,7 @@ const CONNECTION_OPTIONS = [
   'shadowsocks-tcp',
   'trojan-tcp-reality',
   'custom',
+  'happ-routing',
 ];
 
 const generateId = () => Math.random().toString(36).substring(7);
@@ -221,17 +223,30 @@ export default function SubscriptionsPage() {
 
   const createInbound = (type = 'vless-tcp-reality'): InboundConfigUI => {
     const nodeId = getDefaultNodeId();
+    
+    // HAPP ROUTING - специальная обработка
+    if (type === 'happ-routing') {
+        return {
+            id: generateId(),
+            type,
+            port: '0',
+            sni: '',
+            link: '',
+            routingProfile: '',
+        };
+    }
+    
     const certDefaults = type === 'hysteria2-udp' ? getHysteriaCertDefaults(nodeId) : {};
     return {
-      id: generateId(),
-      type,
-      port: 'random',
-      sni: type === 'hysteria2-udp' ? '' : 'random',
-      link: '',
-      nodeId,
-      flag: getNodeFlag(nodeId),
-      name: '',
-      ...certDefaults,
+        id: generateId(),
+        type,
+        port: 'random',
+        sni: type === 'hysteria2-udp' ? '' : 'random',
+        link: '',
+        nodeId,
+        flag: getNodeFlag(nodeId),
+        name: '',
+        ...certDefaults,
     };
   };
 
@@ -280,6 +295,7 @@ export default function SubscriptionsPage() {
           relayServerId: item.relayServerId ? item.relayServerId.toString() : '',
           flag: item.flag || getNodeFlag(nodeId),
           name: item.name || '',
+          routingProfile: item.routingProfile || '',
           certificateFile:
             item.type === 'hysteria2-udp'
               ? item.certificateFile || certDefaults.certificateFile
@@ -323,7 +339,7 @@ export default function SubscriptionsPage() {
           next.keyFile = next.keyFile || defaults.keyFile;
         }
 
-        if (field === 'type' && value !== 'custom' && !next.nodeId) {
+        if (field === 'type' && value !== 'custom' && value !== 'happ-routing' && !next.nodeId) {
           next.nodeId = getDefaultNodeId();
           next.flag = getNodeFlag(next.nodeId);
         }
@@ -363,7 +379,7 @@ export default function SubscriptionsPage() {
 
   const handleSave = async () => {
     const nextPortErrors = inbounds.reduce<Record<string, string>>((acc, inbound) => {
-      if (inbound.type !== 'custom' && !isValidPort(inbound.port)) {
+      if (inbound.type !== 'custom' && inbound.type !== 'happ-routing' && !isValidPort(inbound.port)) {
         acc[inbound.id] = 'Порт: число 1-65535 или random';
       }
       return acc;
@@ -385,29 +401,36 @@ export default function SubscriptionsPage() {
 
     const payload = {
       name,
-      inboundsConfig: inbounds.map((inbound) =>
-        inbound.type === 'custom'
-          ? { type: inbound.type, link: inbound.link }
-          : {
-              type: inbound.type,
-              port: inbound.port === 'random' ? 'random' : parseInt(inbound.port, 10),
-              sni: inbound.type === 'hysteria2-udp' ? undefined : inbound.sni,
-              nodeId: inbound.nodeId || undefined,
-              relayServerId: inbound.relayServerId
-                ? parseInt(inbound.relayServerId, 10)
-                : undefined,
-              flag: inbound.flag || getNodeFlag(inbound.nodeId) || undefined,
-              name: inbound.name?.trim() || undefined,
-              certificateFile:
-                inbound.type === 'hysteria2-udp'
-                  ? inbound.certificateFile?.trim() || undefined
-                  : undefined,
-              keyFile:
-                inbound.type === 'hysteria2-udp'
-                  ? inbound.keyFile?.trim() || undefined
-                  : undefined,
-            },
-      ),
+      inboundsConfig: inbounds.map((inbound) => {
+        if (inbound.type === 'custom') {
+          return { type: inbound.type, link: inbound.link };
+        }
+        if (inbound.type === 'happ-routing') {
+          return {
+            type: inbound.type,
+            routingProfile: inbound.routingProfile,
+          };
+        }
+        return {
+          type: inbound.type,
+          port: inbound.port === 'random' ? 'random' : parseInt(inbound.port, 10),
+          sni: inbound.type === 'hysteria2-udp' ? undefined : inbound.sni,
+          nodeId: inbound.nodeId || undefined,
+          relayServerId: inbound.relayServerId
+            ? parseInt(inbound.relayServerId, 10)
+            : undefined,
+          flag: inbound.flag || getNodeFlag(inbound.nodeId) || undefined,
+          name: inbound.name?.trim() || undefined,
+          certificateFile:
+            inbound.type === 'hysteria2-udp'
+              ? inbound.certificateFile?.trim() || undefined
+              : undefined,
+          keyFile:
+            inbound.type === 'hysteria2-udp'
+              ? inbound.keyFile?.trim() || undefined
+              : undefined,
+        };
+      }),
     };
 
     try {
@@ -735,6 +758,18 @@ export default function SubscriptionsPage() {
                 </FormControl>
                 {inbound.type === 'custom' ? (
                   <TextField size="small" label="Ссылка на подключение" placeholder="vless://..." value={inbound.link || ''} onChange={(e) => handleInboundChange(inbound.id, 'link', e.target.value)} sx={{ width: 460, flexShrink: 0 }} />
+                ) : inbound.type === 'happ-routing' ? (
+                  <TextField
+                    size="small"
+                    label="Routing профиль (JSON или base64)"
+                    placeholder='{"Name":"MyProfile","GlobalProxy":"true","DirectSites":["geosite:cn"]}'
+                    value={inbound.routingProfile || ''}
+                    onChange={(e) => handleInboundChange(inbound.id, 'routingProfile', e.target.value)}
+                    multiline
+                    rows={4}
+                    sx={{ width: 460, flexShrink: 0 }}
+                    helperText="Вставьте JSON профиль или готовую ссылку happ://routing/..."
+                  />
                 ) : (
                   <>
                     <FormControl size="small" sx={{ width: 170, flexShrink: 0 }}>
