@@ -38,9 +38,8 @@ check_containers_running() {
     # Формат: NAME\tSTATUS (например: "3dp-postgres\tUp 2 days" или "3dp-postgres\tError")
     while IFS=$'\t' read -r container_name status; do
       if [ -n "$container_name" ] && [ -n "$status" ]; then
-        # Проверяем, что статус содержит Up/running/healthy/restarting
-        # Up, Up 2 days, Up Less than a second, (healthy), running, restarting
-        if ! echo "$status" | grep -qiE "^up|running|healthy|restarting"; then
+        # Restarting означает, что контейнер не смог стабильно запуститься.
+        if ! echo "$status" | grep -qiE "^up|running|healthy"; then
           failed=1
           warn "Контейнер $container_name в статусе: $status"
         fi
@@ -284,6 +283,52 @@ remove_hysteria_mount() {
   mv "$tmp_file" "$compose_file"
 }
 
+ensure_safe_database_mode() {
+  local compose_file="$1"
+  [[ -f "$compose_file" ]] || return 0
+
+  local tmp_file
+  tmp_file="$(mktemp)"
+
+  awk '
+    /^[[:space:]]+DB_SYNCHRONIZE:/ { next }
+    /^[[:space:]]+DB_MIGRATIONS_RUN:/ { next }
+    {
+      print $0
+      if ($0 ~ /^[[:space:]]+DB_NAME:/) {
+        match($0, /^[[:space:]]+/)
+        indent = substr($0, RSTART, RLENGTH)
+        print indent "DB_SYNCHRONIZE: \"false\""
+        print indent "DB_MIGRATIONS_RUN: \"true\""
+      }
+    }
+  ' "$compose_file" > "$tmp_file"
+
+  mv "$tmp_file" "$compose_file"
+}
+
+get_node_count() {
+  docker exec 3dp-postgres sh -c '
+    psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -Atqc "
+      SELECT CASE
+        WHEN to_regclass('\''public.node'\'') IS NULL THEN 0
+        ELSE (SELECT count(*) FROM node)
+      END
+    "
+  ' 2>/dev/null | tr -d '[:space:]'
+}
+
+backup_database() {
+  local backup_dir="$PROJECT_DIR/backups"
+  BACKUP_FILE="$backup_dir/pre-update-$(date +%Y%m%d-%H%M%S).sql.gz"
+
+  mkdir -p "$backup_dir"
+  log "Создание резервной копии базы данных: $BACKUP_FILE"
+  docker exec 3dp-postgres sh -c \
+    'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB"' | gzip > "$BACKUP_FILE"
+  chmod 600 "$BACKUP_FILE"
+}
+
 need_root() {
   [[ $EUID -eq 0 ]] || die "Запускать только от root"
 }
@@ -314,7 +359,11 @@ log "Compose команда: ${COMPOSE_CMD[*]}"
 #################################
 # CHECK AND FIX CREDENTIALS
 #################################
-check_and_fix_credentials || true
+# Обновление не должно менять пароль уже инициализированной PostgreSQL:
+# изменение только .env делает существующую базу недоступной.
+if [[ ! -f ".env" ]]; then
+  die "Файл .env не найден. Обновление остановлено, чтобы не потерять доступ к существующей базе данных"
+fi
 
 #################################
 # FIX NGINX CONFIG
@@ -322,6 +371,16 @@ check_and_fix_credentials || true
 ensure_nginx_api_timeouts "$PROJECT_DIR/client/nginx-client.conf"
 ensure_bus_location "$PROJECT_DIR/client/nginx-client.conf"
 remove_hysteria_mount "$PROJECT_DIR/docker-compose.yml"
+ensure_safe_database_mode "$PROJECT_DIR/docker-compose.yml"
+
+#################################
+# BACKUP DATABASE
+#################################
+node_count_before="$(get_node_count)"
+[[ "$node_count_before" =~ ^[0-9]+$ ]] || die "Не удалось проверить количество нод перед обновлением"
+backup_database
+backup_file="$BACKUP_FILE"
+[[ -s "$backup_file" ]] || die "Не удалось создать резервную копию базы данных"
 
 #################################
 # REBUILD BACKEND
@@ -341,9 +400,16 @@ log "Пересоздание контейнеров..."
 
 # Проверка: все ли контейнеры запустились
 if ! check_containers_running 60; then
-    error "Не удалось запустить контейнеры. Логи:"
+    warn "Не удалось запустить контейнеры. Логи:"
     "${COMPOSE_CMD[@]}" logs --tail=50
     die "Обновление прервано из-за ошибки запуска контейнеров"
+fi
+
+node_count_after="$(get_node_count)"
+[[ "$node_count_after" =~ ^[0-9]+$ ]] || die "Не удалось проверить количество нод после обновления. Резервная копия: $backup_file"
+if (( node_count_after < node_count_before )); then
+  "${COMPOSE_CMD[@]}" stop backend || true
+  die "Количество нод уменьшилось с $node_count_before до $node_count_after. Обновление остановлено, резервная копия: $backup_file"
 fi
 
 log "Очистка старых Docker-образов (освобождение места)..."

@@ -469,6 +469,8 @@ services:
       DB_USERNAME: admin
       DB_PASSWORD: ${DB_PASS}
       DB_NAME: 3dp_manager
+      DB_SYNCHRONIZE: "true"
+      DB_MIGRATIONS_RUN: "false"
       JWT_SECRET: ${JWT_SECRET}
       ADMIN_LOGIN: ${ADMIN_USER}
       ADMIN_PASSWORD: ${ADMIN_PASS}
@@ -580,6 +582,8 @@ services:
       DB_USERNAME: admin
       DB_PASSWORD: ${DB_PASS}
       DB_NAME: 3dp_manager
+      DB_SYNCHRONIZE: "true"
+      DB_MIGRATIONS_RUN: "false"
       JWT_SECRET: ${JWT_SECRET}
       ADMIN_LOGIN: ${ADMIN_USER}
       ADMIN_PASSWORD: ${ADMIN_PASS}

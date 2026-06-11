@@ -1,3 +1,4 @@
 checker/
 client/.env
 client/coverage/
+backups/

@@ -469,7 +469,6 @@ export class InboundBuilderService {
             content: '',
             dir: '',
             headers: {},
-            insecure: true,
             rewriteHost: false,
             statusCode: 0,
             type: 'proxy',
@@ -703,7 +702,6 @@ export class InboundBuilderService {
     const auth = settings.clients?.[0]?.auth || settings.clients?.[0]?.password || password;
     const finalmask = stream.finalmask?.udp?.[0];
     const params = new URLSearchParams();
-    params.set('insecure', '1');
     params.set('security', 'tls');
     params.set('fp', 'chrome');
     params.set('alpn', 'h3');
@@ -769,7 +767,6 @@ export class InboundBuilderService {
     }
 
     const params = new URLSearchParams();
-    params.set('insecure', '1');
     params.set('security', 'tls');
     params.set('fp', 'chrome');
     params.set('alpn', 'h3');
