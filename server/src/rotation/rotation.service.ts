@@ -128,8 +128,8 @@ export class RotationService implements OnModuleInit {
     await this.settingRepo.save(s);
   }
 
-  async performRotation() {
-    this.logger.debug('Запуск плановой ротации...');
+  async performRotation(force = false) {
+    this.logger.debug(`Запуск плановой ротации...${force ? ' (принудительно)' : ''}`);
 
     const defaultNode = await this.getDefaultNode();
     const isLoginSuccess = defaultNode ? true : await this.xuiService.login();
@@ -156,13 +156,7 @@ export class RotationService implements OnModuleInit {
     }
 
     for (const sub of subscriptions) {
-      const rotated = await this.rotateSubscription(sub, domains, defaultNode);
-      if (!rotated) {
-        return {
-          success: false,
-          message: 'Failed to delete old inbounds',
-        };
-      }
+      await this.rotateSubscription(sub, domains, defaultNode, force);
     }
 
     this.logger.debug('Ротация завершена.');
@@ -173,24 +167,37 @@ export class RotationService implements OnModuleInit {
     sub: Subscription,
     domains: Domain[],
     defaultNode: Node | null,
+    force = false,
   ) {
-    this.logger.debug(`Ротация для подписки: ${sub.name} (${sub.uuid})`);
+    this.logger.debug(`Ротация для подписки: ${sub.name} (${sub.uuid})${force ? ' [force]' : ''}`);
 
     // Удаляем старые инбаунды
     if (sub.inbounds && sub.inbounds.length > 0) {
       for (const inbound of sub.inbounds) {
-        if (inbound.xuiId && inbound.xuiId > 0) {
-          const isDeleted = await this.xuiService.deleteInbound(
-            inbound.xuiId,
-            await this.resolveInboundNode(inbound),
-          );
-          if (!isDeleted) {
-            this.logger.error(
-              `Failed to delete old inbound ${inbound.xuiId}; rotation for subscription ${sub.id} is aborted`,
+        if (inbound.xuiId && inbound.xuiId > 0 && !force) {
+          // При force=true пропускаем удаление с 3x-ui — удаляем только локальные записи
+          try {
+            const isDeleted = await this.xuiService.deleteInbound(
+              inbound.xuiId,
+              await this.resolveInboundNode(inbound),
             );
-            return false;
+            if (!isDeleted) {
+              this.logger.warn(
+                `Не удалось удалить старый инбаунд ${inbound.xuiId} с 3x-ui (нода, возможно, недоступна). Продолжаем ротацию.`,
+              );
+            }
+          } catch (error) {
+            this.logger.warn(
+              `Ошибка при удалении старого инбаунда ${inbound.xuiId}: ${error instanceof Error ? error.message : 'неизвестная ошибка'}. Продолжаем ротацию.`,
+            );
           }
+        } else if (force && inbound.xuiId && inbound.xuiId > 0) {
+          this.logger.debug(
+            `Принудительная ротация: пропускаем удаление инбаунда ${inbound.xuiId} с 3x-ui, удаляем только локальную запись`,
+          );
         }
+        // Удаляем запись из локальной БД в любом случае,
+        // чтобы подписка не застряла с мёртвыми инбаундами
         await this.inboundRepo.delete(inbound.id);
       }
     }
@@ -439,9 +446,10 @@ export class RotationService implements OnModuleInit {
 
   /**
    * Ручная ротация одной подписки (независимо от флага isAutoRotationEnabled)
+   * @param force - если true, не пытается удалять старые инбаунды с 3x-ui
    */
-  async rotateSingleSubscription(subscriptionId: string) {
-    this.logger.debug(`Запуск ручной ротации подписки: ${subscriptionId}`);
+  async rotateSingleSubscription(subscriptionId: string, force = false) {
+    this.logger.debug(`Запуск ручной ротации подписки: ${subscriptionId}${force ? ' [force]' : ''}`);
 
     const sub = await this.subRepo.findOne({
       where: { id: subscriptionId },
@@ -469,13 +477,7 @@ export class RotationService implements OnModuleInit {
       return { success: false, message: 'Список доменов пуст!' };
     }
 
-    const rotated = await this.rotateSubscription(sub, domains, defaultNode);
-    if (!rotated) {
-      return {
-        success: false,
-        message: 'Failed to delete old inbounds',
-      };
-    }
+    await this.rotateSubscription(sub, domains, defaultNode, force);
 
     this.logger.debug(`Ручная ротация подписки ${subscriptionId} завершена.`);
     return { success: true, message: 'Ротация успешно выполнена' };
