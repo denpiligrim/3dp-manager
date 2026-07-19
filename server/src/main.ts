@@ -3,10 +3,11 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 import { AuthService } from './auth/auth.service';
 import { RequestMethod, Logger, LogLevel } from '@nestjs/common';
-import { Request, Response, NextFunction, RequestHandler } from 'express';
+import express, { Request, Response, NextFunction, RequestHandler } from 'express';
 import cookieParser from 'cookie-parser';
 import { HttpExceptionFilter } from './client/client.exception-filter';
 import { ConfigService } from '@nestjs/config';
+import * as path from 'path';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -79,7 +80,22 @@ async function bootstrap() {
     ],
   });
 
-  const port = configService.get<number>('PORT', 3100);
+  // Serve static assets from the React client's build directory
+  const clientDistPath = path.join(process.cwd(), 'client', 'dist');
+  app.use(express.static(clientDistPath));
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    if (
+      req.method === 'GET' &&
+      !req.path.startsWith('/api') &&
+      !req.path.startsWith('/bus')
+    ) {
+      res.sendFile(path.join(clientDistPath, 'index.html'));
+    } else {
+      next();
+    }
+  });
+
+  const port = configService.get<number>('PORT', 3000);
   await app.listen(port, '0.0.0.0');
   logger.log(`Application started on port ${port}`);
 }
