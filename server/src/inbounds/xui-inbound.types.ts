@@ -18,7 +18,7 @@ export interface XuiInboundSettings {
     limitIp?: number;
     totalGB?: number;
     expiryTime?: number;
-    tgId?: number;
+    tgId?: string | number;
     subId?: string;
     reset?: number;
   }>;

@@ -103,11 +103,14 @@ describe('InboundBuilderService', () => {
           publicKey: 'public-key',
         }),
     ],
-  ])('должен передавать числовой tgId для %s', (_name, buildInbound) => {
-    const settings = JSON.parse(buildInbound().settings);
+  ])(
+    'не должен передавать необязательный tgId для %s',
+    (_name, buildInbound) => {
+      const settings = JSON.parse(buildInbound().settings);
 
-    expect(settings.clients[0].tgId).toBe(0);
-  });
+      expect(settings.clients[0]).not.toHaveProperty('tgId');
+    },
+  );
 
   describe('buildVlessRealityTcp', () => {
     const params = {
