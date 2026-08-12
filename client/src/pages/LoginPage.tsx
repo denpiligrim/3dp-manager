@@ -59,10 +59,9 @@ export default function LoginPage() {
         p: 4,
         width: '100%',
         maxWidth: 400,
-        background: 'rgba(255, 255, 255, 0.05)',
-        backdropFilter: 'blur(10px)',
+        bgcolor: 'background.paper',
         animation: 'fadeIn 1.5s ease-out',
-        boxShadow: '0 15px 25px rgba(0,0,0,0.5)'
+        boxShadow: '0 15px 25px rgba(0,0,0,0.5)',
       }}>
         <Typography variant="h5" gutterBottom align="center"><span style={{ verticalAlign: 'middle' }}>Вход в 3DP-MANAGER</span> <Chip label={`v${APP_VERSION}`} size="small" sx={{ verticalAlign: 'middle' }} /></Typography>
 
