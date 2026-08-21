@@ -573,6 +573,9 @@ describe('InboundBuilderService', () => {
 
       expect(result).toContain('trojan://');
       expect(result).toContain('security=reality');
+      expect(result).toContain('@192.168.1.1:443');
+      expect(result).not.toContain('@ya.ru:');
+      expect(result).toContain('sni=ya.ru');
     });
 
     it('должен вернуть пустую строку для trojan без reality', () => {

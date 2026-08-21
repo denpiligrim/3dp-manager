@@ -674,7 +674,7 @@ export class InboundBuilderService {
     const spx = '%2F';
 
     return (
-      `trojan://${password}@${SNI}:${inbound.port}` +
+      `trojan://${password}@${sni}:${inbound.port}` +
       `?type=tcp` +
       `&security=reality` +
       `&pbk=${pbk}` +
