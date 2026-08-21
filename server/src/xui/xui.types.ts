@@ -39,7 +39,7 @@ export interface XuiInboundClient {
   totalGB?: number;
   expiryTime?: number;
   enable?: boolean;
-  tgId?: string;
+  tgId?: number;
   subId?: string;
   reset?: number;
   password?: string;
