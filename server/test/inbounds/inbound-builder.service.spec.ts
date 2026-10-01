@@ -33,6 +33,85 @@ describe('InboundBuilderService', () => {
     jest.clearAllMocks();
   });
 
+  it.each([
+    [
+      'VLESS Reality TCP',
+      () =>
+        service.buildVlessRealityTcp({
+          port: 443,
+          uuid: 'test-uuid',
+          sni: 'example.com',
+          privateKey: 'private-key',
+          publicKey: 'public-key',
+        }),
+    ],
+    [
+      'VLESS Reality XHTTP',
+      () =>
+        service.buildVlessRealityXhttp({
+          port: 8443,
+          uuid: 'test-uuid',
+          sni: 'example.com',
+          privateKey: 'private-key',
+          publicKey: 'public-key',
+        }),
+    ],
+    [
+      'VLESS Reality gRPC',
+      () =>
+        service.buildVlessRealityGrpc({
+          port: 2053,
+          uuid: 'test-uuid',
+          sni: 'example.com',
+          privateKey: 'private-key',
+          publicKey: 'public-key',
+        }),
+    ],
+    [
+      'VLESS WebSocket',
+      () =>
+        service.buildVlessWs({
+          port: 10000,
+          uuid: 'test-uuid',
+          sni: 'example.com',
+        }),
+    ],
+    [
+      'VMess TCP',
+      () =>
+        service.buildVmessTcp({
+          port: 20000,
+          uuid: 'test-uuid',
+        }),
+    ],
+    [
+      'Shadowsocks TCP',
+      () =>
+        service.buildShadowsocksTcp({
+          port: 30000,
+          uuid: 'test-uuid',
+        }),
+    ],
+    [
+      'Trojan Reality TCP',
+      () =>
+        service.buildTrojanRealityTcp({
+          port: 443,
+          uuid: 'test-uuid',
+          sni: 'example.com',
+          privateKey: 'private-key',
+          publicKey: 'public-key',
+        }),
+    ],
+  ])(
+    'не должен передавать необязательный tgId для %s',
+    (_name, buildInbound) => {
+      const settings = JSON.parse(buildInbound().settings);
+
+      expect(settings.clients[0]).not.toHaveProperty('tgId');
+    },
+  );
+
   describe('buildVlessRealityTcp', () => {
     const params = {
       port: 443,
