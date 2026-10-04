@@ -237,6 +237,54 @@ describe('InboundBuilderService', () => {
     });
   });
 
+  // 3x-ui >= v3.6.0 объявил Client.TgID как int64. Строка (в т.ч. пустая)
+  // роняет разбор всего инбаунда: "cannot unmarshal string into ... int64".
+  describe('совместимость клиента с 3x-ui v3.6.0', () => {
+    const realityParams = {
+      port: 443,
+      uuid: 'test-uuid-tgid',
+      sni: 'ya.ru',
+      privateKey: 'private-key',
+      publicKey: 'public-key',
+    };
+
+    const builders: Array<[string, () => { settings: string }]> = [
+      [
+        'buildVlessRealityTcp',
+        () => service.buildVlessRealityTcp(realityParams),
+      ],
+      [
+        'buildVlessRealityXhttp',
+        () => service.buildVlessRealityXhttp(realityParams),
+      ],
+      [
+        'buildVlessRealityGrpc',
+        () => service.buildVlessRealityGrpc(realityParams),
+      ],
+      [
+        'buildVlessWs',
+        () => service.buildVlessWs({ port: 80, uuid: 'u', sni: 'ya.ru' }),
+      ],
+      ['buildVmessTcp', () => service.buildVmessTcp({ port: 8080, uuid: 'u' })],
+      [
+        'buildShadowsocksTcp',
+        () => service.buildShadowsocksTcp({ port: 8388, uuid: 'u' }),
+      ],
+      [
+        'buildTrojanRealityTcp',
+        () => service.buildTrojanRealityTcp(realityParams),
+      ],
+    ];
+
+    it.each(builders)('%s отдаёт tgId числом, а не строкой', (_name, build) => {
+      const settings = JSON.parse(build().settings);
+
+      for (const client of settings.clients) {
+        expect(typeof client.tgId).toBe('number');
+      }
+    });
+  });
+
   describe('buildHysteria2Link', () => {
     beforeEach(() => {
       jest.spyOn(console, 'warn').mockImplementation(() => {});
@@ -525,6 +573,9 @@ describe('InboundBuilderService', () => {
 
       expect(result).toContain('trojan://');
       expect(result).toContain('security=reality');
+      expect(result).toContain('@192.168.1.1:443');
+      expect(result).not.toContain('@ya.ru:');
+      expect(result).toContain('sni=ya.ru');
     });
 
     it('должен вернуть пустую строку для trojan без reality', () => {

@@ -216,6 +216,10 @@ export class RotationService implements OnModuleInit {
     // Получаем конфиг или пустой массив
     const inboundsConfig = sub.inboundsConfig || [];
 
+    // Панель может отклонить часть типов (несовместимая схема, занятый порт),
+    // а ротация при этом отчитается об успехе — копим отказы и логируем итог.
+    const rejectedTypes: string[] = [];
+
     for (const config of inboundsConfig) {
       const type = config.type;
       const uuid = uuidv4();
@@ -286,6 +290,7 @@ export class RotationService implements OnModuleInit {
           targetNode,
         );
         if (!xuiId) {
+          rejectedTypes.push(type);
           this.logger.warn(
             'Hysteria2 inbound was not created by 3x-ui; skipping subscription link for this inbound',
           );
@@ -407,7 +412,16 @@ export class RotationService implements OnModuleInit {
           relayServer,
         });
         await this.inboundRepo.save(newInbound);
+      } else {
+        rejectedTypes.push(type);
       }
+    }
+
+    if (rejectedTypes.length > 0) {
+      this.logger.error(
+        `Подписка "${sub.name}": 3x-ui отклонил ${rejectedTypes.length} из ${inboundsConfig.length} инбаундов (${rejectedTypes.join(', ')}). ` +
+          'Точная причина — в строках "3x-ui отклонил создание" выше.',
+      );
     }
 
     return true;
