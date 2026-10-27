@@ -24,9 +24,6 @@ import { Tunnel } from './tunnels/entities/tunnel.entity';
 import { SessionModule } from './session/session.module';
 import { Node } from './nodes/entities/node.entity';
 import { NodesModule } from './nodes/nodes.module';
-import { AddNodesAndNodeRelations1765960000000 } from './migrations/1765960000000-add-nodes-and-node-relations';
-import { AddNodeIpFlagAndInboundLabels1770000000000 } from './migrations/1770000000000-add-node-ip-flag-and-inbound-labels';
-import { AddNodeDomain1770000000001 } from './migrations/1770000000001-add-node-domain';
 
 @Module({
   imports: [
@@ -40,20 +37,11 @@ import { AddNodeDomain1770000000001 } from './migrations/1770000000001-add-node-
       },
     ]),
     TypeOrmModule.forRoot({
-      type: 'postgres',
-      host: process.env.DB_HOST,
-      port: parseInt(process.env.DB_PORT || '5432', 10),
-      username: process.env.DB_USERNAME,
-      password: process.env.DB_PASSWORD,
-      database: process.env.DB_NAME,
+      type: 'sqlite',
+      database: 'database.sqlite',
       entities: [Setting, Domain, Subscription, Inbound, Tunnel, Node],
-      migrations: [
-        AddNodesAndNodeRelations1765960000000,
-        AddNodeIpFlagAndInboundLabels1770000000000,
-        AddNodeDomain1770000000001,
-      ],
-      synchronize: process.env.DB_SYNCHRONIZE !== 'false',
-      migrationsRun: process.env.DB_MIGRATIONS_RUN === 'true',
+      synchronize: true,
+      migrationsRun: false,
     }),
     SessionModule,
     XuiModule,

@@ -1,4 +1,13 @@
-import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+} from '@nestjs/common';
 import { CreateNodeDto, UpdateNodeDto } from './dto/node.dto';
 import { NodesService } from './nodes.service';
 
@@ -32,8 +41,9 @@ export class NodesController {
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.nodesService.remove(id);
+  remove(@Param('id') id: string, @Query('force') force?: string) {
+    const isForce = force === 'true';
+    return this.nodesService.remove(id, isForce);
   }
 
   @Post(':id/main')

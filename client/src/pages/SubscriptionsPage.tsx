@@ -22,6 +22,7 @@ import {
   Select,
   Snackbar,
   Stack,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -132,6 +133,7 @@ export default function SubscriptionsPage() {
   const [currentLinks, setCurrentLinks] = useState<string[]>([]);
   const [createdSubscriptionId, setCreatedSubscriptionId] = useState<string | null>(null);
   const [rotationLoading, setRotationLoading] = useState(false);
+  const [forceRotation, setForceRotation] = useState(false);
   const [rotationSettings, setRotationSettings] = useState({
     rotation_interval: '30',
     rotation_status: 'active',
@@ -478,12 +480,16 @@ export default function SubscriptionsPage() {
       confirmText: 'Обновить',
       confirmColor: 'primary',
       onConfirm: async () => {
-        const res = await api.post(`/rotation/rotate-one/${sub.id}`);
+        const url = forceRotation
+          ? `/rotation/rotate-one/${sub.id}?force=true`
+          : `/rotation/rotate-one/${sub.id}`;
+        const res = await api.post(url);
         setSnackbar({
           open: true,
           type: res.data?.success ? 'success' : 'error',
           message: res.data?.message || 'Ротация выполнена',
         });
+        setForceRotation(false);
         loadSubs();
       },
     });
@@ -528,12 +534,16 @@ export default function SubscriptionsPage() {
       onConfirm: async () => {
         try {
           setRotationLoading(true);
-          const { data } = await api.post('/rotation/rotate-all');
+          const url = forceRotation
+            ? '/rotation/rotate-all?force=true'
+            : '/rotation/rotate-all';
+          const { data } = await api.post(url);
           setSnackbar({
             open: true,
             type: data?.success ? 'success' : 'error',
             message: data?.message || 'Ротация завершена',
           });
+          setForceRotation(false);
           loadSubs();
         } finally {
           setRotationLoading(false);
@@ -576,13 +586,17 @@ export default function SubscriptionsPage() {
 
   const handleGenerateCreatedSubscription = async () => {
     if (!createdSubscriptionId) return;
-    const res = await api.post(`/rotation/rotate-one/${createdSubscriptionId}`);
+    const url = forceRotation
+      ? `/rotation/rotate-one/${createdSubscriptionId}?force=true`
+      : `/rotation/rotate-one/${createdSubscriptionId}`;
+    const res = await api.post(url);
     setSnackbar({
       open: true,
       type: res.data?.success ? 'success' : 'error',
       message: res.data?.message || 'Ротация выполнена',
     });
     setCreatedSubscriptionId(null);
+    setForceRotation(false);
     loadSubs();
   };
 
@@ -833,11 +847,21 @@ export default function SubscriptionsPage() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={confirmDialog.open} onClose={() => setConfirmDialog({ ...confirmDialog, open: false })}>
+      <Dialog open={confirmDialog.open} onClose={() => { setConfirmDialog({ ...confirmDialog, open: false }); setForceRotation(false); }}>
         <DialogTitle>Подтверждение</DialogTitle>
-        <DialogContent><Typography>{confirmDialog.title}</Typography></DialogContent>
+        <DialogContent>
+          <Typography>{confirmDialog.title}</Typography>
+          {confirmDialog.confirmColor === 'primary' && (
+            <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 2 }}>
+              <Switch checked={forceRotation} onChange={(e) => setForceRotation(e.target.checked)} />
+              <Typography variant="body2">
+                Принудительно (не удалять старые конфиги с 3x-ui)
+              </Typography>
+            </Stack>
+          )}
+        </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmDialog({ ...confirmDialog, open: false })}>Отмена</Button>
+          <Button onClick={() => { setConfirmDialog({ ...confirmDialog, open: false }); setForceRotation(false); }}>Отмена</Button>
           <Button onClick={() => { confirmDialog.onConfirm(); setConfirmDialog({ ...confirmDialog, open: false }); }} variant="contained" color={confirmDialog.confirmColor}>
             {confirmDialog.confirmText}
           </Button>

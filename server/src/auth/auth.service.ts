@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { Setting } from '../settings/entities/setting.entity';
 import { ConfigService } from '@nestjs/config';
 
@@ -102,18 +102,13 @@ export class AuthService {
 
     if (!login) {
       this.logger.debug('Инициализация администратора...');
-      const envLogin = this.configService.get<string>('ADMIN_LOGIN');
-      const envPass = this.configService.get<string>('ADMIN_PASSWORD');
+      const envLogin = this.configService.get<string>('ADMIN_LOGIN') || 'admin';
+      const envPass = this.configService.get<string>('ADMIN_PASSWORD') || 'admin';
 
-      // Проверяем, что переменные окружения установлены
-      if (!envLogin || !envPass) {
-        this.logger.error(
-          'Критическая ошибка: ADMIN_LOGIN и ADMIN_PASSWORD должны быть установлены в переменных окружения',
+      if (envLogin === 'admin' && envPass === 'admin') {
+        this.logger.warn(
+          'Используются дефолтные логин и пароль: admin / admin. Настоятельно рекомендуется настроить ADMIN_LOGIN и ADMIN_PASSWORD в окружении.',
         );
-        this.logger.error(
-          'Проверьте .env файл или docker-compose.yml на наличие этих переменных',
-        );
-        throw new Error('ADMIN_LOGIN и ADMIN_PASSWORD должны быть установлены');
       }
 
       const loginSetting = this.settingsRepo.create({

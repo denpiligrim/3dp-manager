@@ -1,6 +1,6 @@
 {
   "name": "3dp-manager",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "description": "Inbound generator for 3x-ui",
   "private": false,
   "repository": {
