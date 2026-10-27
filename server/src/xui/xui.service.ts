@@ -22,6 +22,7 @@ interface LoginResponse {
 export class XuiService {
   private readonly logger = new Logger(XuiService.name);
   private api: AxiosInstance;
+  private csrfToken = '';
 
   constructor(
     @InjectRepository(Setting)
@@ -38,6 +39,9 @@ export class XuiService {
       const cookie = this.sessionService.getCookie();
       if (cookie) {
         config.headers['Cookie'] = cookie;
+      }
+      if (this.csrfToken) {
+        config.headers['X-CSRF-Token'] = this.csrfToken;
       }
       return config;
     });
@@ -76,6 +80,51 @@ export class XuiService {
     return { httpAgent: new http.Agent() };
   }
 
+  private mergeCookies(current: string, setCookie?: string[] | null): string {
+    if (!setCookie?.length) return current;
+
+    const jar = new Map<string, string>();
+    for (const part of current.split('; ').filter(Boolean)) {
+      const eq = part.indexOf('=');
+      if (eq > 0) jar.set(part.slice(0, eq), part.slice(eq + 1));
+    }
+    for (const raw of setCookie) {
+      const first = raw.split(';')[0];
+      const eq = first.indexOf('=');
+      if (eq > 0) jar.set(first.slice(0, eq).trim(), first.slice(eq + 1));
+    }
+
+    return [...jar].map(([k, v]) => `${k}=${v}`).join('; ');
+  }
+
+  /**
+   * 3x-ui >= v3.6.0 защищает POST /login и все мутации /panel/api/* через
+   * CSRFMiddleware. Токен привязан к сессионной cookie, поэтому cookie и токен
+   * всегда должны идти вместе. Старые панели отвечают 404 — это не ошибка,
+   * просто CSRF там не нужен.
+   */
+  private async fetchCsrfToken(
+    api: AxiosInstance,
+    cookie: string,
+  ): Promise<{ token: string; cookie: string }> {
+    try {
+      const res = await api.get<XuiResponse<string>>('/csrf-token', {
+        headers: cookie ? { Cookie: cookie } : undefined,
+        validateStatus: () => true,
+      });
+
+      const merged = this.mergeCookies(cookie, res.headers['set-cookie']);
+      const token =
+        res.status === 200 && typeof res.data?.obj === 'string'
+          ? res.data.obj
+          : '';
+
+      return { token, cookie: merged };
+    } catch {
+      return { token: '', cookie };
+    }
+  }
+
   private async createAuthenticatedApi(node?: Node): Promise<AxiosInstance | null> {
     if (!node) {
       const success = await this.login();
@@ -92,16 +141,39 @@ export class XuiService {
 
     if (!node.login || !node.password) return null;
 
-    const res = await api.post<LoginResponse>('/login', {
-      username: node.login,
-      password: node.password,
-    });
+    // Токен CSRF нужно получить до логина: сам POST /login тоже под защитой.
+    const pre = await this.fetchCsrfToken(api, '');
+
+    const res = await api.post<LoginResponse>(
+      '/login',
+      {
+        username: node.login,
+        password: node.password,
+      },
+      {
+        headers: {
+          ...(pre.cookie ? { Cookie: pre.cookie } : {}),
+          ...(pre.token ? { 'X-CSRF-Token': pre.token } : {}),
+        },
+      },
+    );
 
     if (!res.data?.success || !res.headers['set-cookie']) {
       return null;
     }
 
-    api.defaults.headers.common.Cookie = res.headers['set-cookie'].join('; ');
+    // Идентификатор сессии меняется при логине — перевыпускаем токен под новую сессию.
+    const post = await this.fetchCsrfToken(
+      api,
+      this.mergeCookies(pre.cookie, res.headers['set-cookie']),
+    );
+
+    api.defaults.headers.common.Cookie = post.cookie;
+    const token = post.token || pre.token;
+    if (token) {
+      api.defaults.headers.common['X-CSRF-Token'] = token;
+    }
+
     return api;
   }
 
@@ -135,13 +207,30 @@ export class XuiService {
       this.api.defaults.httpAgent = agentConfig.httpAgent;
       this.api.defaults.httpsAgent = agentConfig.httpsAgent;
 
+      // Токен CSRF нужно получить до логина: сам POST /login тоже под защитой.
+      this.csrfToken = '';
+      const pre = await this.fetchCsrfToken(this.api, '');
+      if (pre.cookie) {
+        this.sessionService.setFromHeaders(pre.cookie.split('; '));
+      }
+      this.csrfToken = pre.token;
+
       const res = await this.api.post<LoginResponse>('/login', {
         username: config['xui_login'],
         password: config['xui_password'],
       });
 
       if (res.headers['set-cookie']) {
-        this.sessionService.setFromHeaders(res.headers['set-cookie']);
+        const merged = this.mergeCookies(pre.cookie, res.headers['set-cookie']);
+        this.sessionService.setFromHeaders(merged.split('; '));
+
+        // Идентификатор сессии меняется при логине — перевыпускаем токен.
+        const post = await this.fetchCsrfToken(this.api, merged);
+        if (post.cookie) {
+          this.sessionService.setFromHeaders(post.cookie.split('; '));
+        }
+        this.csrfToken = post.token || pre.token;
+
         this.logger.log('3x-ui login successful');
         return true;
       } else {
@@ -211,6 +300,14 @@ export class XuiService {
           }
         }
 
+        if (error.response?.status === 403) {
+          this.logger.error(
+            'Панель вернула 403 на /panel/api/inbounds/add — отклонён CSRF-токен. ' +
+              'Проверьте, что нода авторизуется API-токеном, либо обновите 3dp-manager.',
+          );
+          return null;
+        }
+
         this.logger.error(
           `Ошибка сети/валидации при добавлении инбаунда: ${error.message}`,
         );
@@ -271,10 +368,21 @@ export class XuiService {
         withCredentials: true,
       });
 
-      const res = await tempApi.post<LoginResponse>('/login', {
-        username: username,
-        password: pass,
-      });
+      const pre = await this.fetchCsrfToken(tempApi, '');
+
+      const res = await tempApi.post<LoginResponse>(
+        '/login',
+        {
+          username: username,
+          password: pass,
+        },
+        {
+          headers: {
+            ...(pre.cookie ? { Cookie: pre.cookie } : {}),
+            ...(pre.token ? { 'X-CSRF-Token': pre.token } : {}),
+          },
+        },
+      );
 
       if (res.headers['set-cookie'] && res.data?.success) {
         this.logger.log(`Connection to 3x-ui successful: ${url}`);
