@@ -469,6 +469,23 @@ describe('RotationService', () => {
       expect(inboundRepo.delete).toHaveBeenCalled();
     });
 
+    it('does not create an inbound for Happ routing metadata', async () => {
+      await (service as any).rotateSubscription(
+        {
+          id: '1',
+          uuid: 'uuid-1',
+          isEnabled: true,
+          inbounds: [],
+          inboundsConfig: [
+            { type: 'happ-routing', routingProfile: '{"Name":"Test"}' },
+          ],
+        },
+        [],
+      );
+      expect(xuiService.addInbound).not.toHaveBeenCalled();
+      expect(inboundRepo.save).not.toHaveBeenCalled();
+    });
+
     it('должен обработать custom инбаунд без 3x-ui', async () => {
       const mockSub = {
         id: '1',

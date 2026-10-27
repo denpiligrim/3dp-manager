@@ -223,30 +223,30 @@ export default function SubscriptionsPage() {
 
   const createInbound = (type = 'vless-tcp-reality'): InboundConfigUI => {
     const nodeId = getDefaultNodeId();
-    
-    // HAPP ROUTING - специальная обработка
+
+    // Профиль маршрутизации не требует ноды и порта.
     if (type === 'happ-routing') {
-        return {
-            id: generateId(),
-            type,
-            port: '0',
-            sni: '',
-            link: '',
-            routingProfile: '',
-        };
-    }
-    
-    const certDefaults = type === 'hysteria2-udp' ? getHysteriaCertDefaults(nodeId) : {};
-    return {
+      return {
         id: generateId(),
         type,
-        port: 'random',
-        sni: type === 'hysteria2-udp' ? '' : 'random',
+        port: '0',
+        sni: '',
         link: '',
-        nodeId,
-        flag: getNodeFlag(nodeId),
-        name: '',
-        ...certDefaults,
+        routingProfile: '',
+      };
+    }
+
+    const certDefaults = type === 'hysteria2-udp' ? getHysteriaCertDefaults(nodeId) : {};
+    return {
+      id: generateId(),
+      type,
+      port: 'random',
+      sni: type === 'hysteria2-udp' ? '' : 'random',
+      link: '',
+      nodeId,
+      flag: getNodeFlag(nodeId),
+      name: '',
+      ...certDefaults,
     };
   };
 
@@ -761,7 +761,7 @@ export default function SubscriptionsPage() {
                 ) : inbound.type === 'happ-routing' ? (
                   <TextField
                     size="small"
-                    label="Routing профиль (JSON или base64)"
+                    label="Профиль Happ (JSON, base64 или ссылка)"
                     placeholder='{"Name":"MyProfile","GlobalProxy":"true","DirectSites":["geosite:cn"]}'
                     value={inbound.routingProfile || ''}
                     onChange={(e) => handleInboundChange(inbound.id, 'routingProfile', e.target.value)}

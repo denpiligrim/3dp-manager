@@ -9,6 +9,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Node } from '../nodes/entities/node.entity';
 import { Tunnel } from '../tunnels/entities/tunnel.entity';
 import { Inbound } from '../inbounds/entities/inbound.entity';
+import { buildHappRoutingLink } from './happ-routing';
 
 @Injectable()
 export class SubscriptionsService {
@@ -153,6 +154,10 @@ export class SubscriptionsService {
     inboundsConfig?: CreateSubscriptionDto['inboundsConfig'],
   ) {
     for (const config of inboundsConfig || []) {
+      if (config.type === 'happ-routing') {
+        buildHappRoutingLink(config.routingProfile);
+        continue;
+      }
       if (config.type === 'custom') continue;
 
       if (config.nodeId) {
@@ -173,9 +178,7 @@ export class SubscriptionsService {
         }
 
         if (config.nodeId && relay.nodeId && relay.nodeId !== config.nodeId) {
-          throw new BadRequestException(
-            'Relay server belongs to another node',
-          );
+          throw new BadRequestException('Relay server belongs to another node');
         }
       }
 

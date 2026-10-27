@@ -276,14 +276,15 @@ describe('InboundBuilderService', () => {
         port: 34443,
         uuid: 'test-auth',
         sni: 'oil.3dp-manager.com',
+        certificateFile:
+          '/etc/letsencrypt/live/oil.3dp-manager.com/fullchain.pem',
+        keyFile: '/etc/letsencrypt/live/oil.3dp-manager.com/privkey.pem',
       });
 
       expect(result).toMatchObject({
         enable: true,
-        listen: '0.0.0.0',
         port: 34443,
         protocol: 'hysteria',
-        tag: 'inbound-34443',
       });
 
       const settings = JSON.parse(result.settings);

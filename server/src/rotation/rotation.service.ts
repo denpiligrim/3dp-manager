@@ -218,6 +218,8 @@ export class RotationService implements OnModuleInit {
 
     for (const config of inboundsConfig) {
       const type = config.type;
+      // Routing metadata is emitted directly from the subscription configuration.
+      if (type === 'happ-routing') continue;
       const uuid = uuidv4();
       const targetNode = await this.resolveNode(
         config.nodeId,
@@ -257,7 +259,6 @@ export class RotationService implements OnModuleInit {
         sni = config.sni === 'random' ? this.pickDomain(domains) : config.sni;
       }
 
-      
       // === 2. Обработка Hysteria2 ===
       if (type === 'hysteria2-udp') {
         let port = 0;
@@ -524,9 +525,15 @@ export class RotationService implements OnModuleInit {
     );
   }
 
-  private async resolveRelay(relayServerId?: number, subscriptionRelay?: Tunnel) {
+  private async resolveRelay(
+    relayServerId?: number,
+    subscriptionRelay?: Tunnel,
+  ) {
     if (!relayServerId) return subscriptionRelay ?? undefined;
-    return (await this.tunnelRepo.findOne({ where: { id: relayServerId } })) ?? undefined;
+    return (
+      (await this.tunnelRepo.findOne({ where: { id: relayServerId } })) ??
+      undefined
+    );
   }
 
   private isRelayAvailableForNode(relay: Tunnel, node?: Node) {

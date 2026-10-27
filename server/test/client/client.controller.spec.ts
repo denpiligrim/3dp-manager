@@ -74,6 +74,31 @@ describe('ClientController', () => {
     jest.clearAllMocks();
   });
 
+  it.each([false, true])(
+    'includes routing metadata in subscription (relay=%s)',
+    async (relay) => {
+      const profile = JSON.stringify({ Name: 'Test' });
+      const routing = `happ://routing/add/${Buffer.from(profile).toString('base64')}`;
+      mockSubRepo.findOne.mockResolvedValue({
+        isEnabled: true,
+        inboundsConfig: [{ type: 'happ-routing', routingProfile: profile }],
+        inbounds: [{ link: 'vless://id@original:443', protocol: 'vless' }],
+      });
+      mockTunnelRepo.findOne.mockResolvedValue({ domain: 'relay.example' });
+      const req = { headers: {} } as any;
+      const res = { setHeader: jest.fn(), send: jest.fn() } as any;
+      if (relay) {
+        await controller.getRelaySubscription('uuid', '1', '', req, res);
+      } else {
+        await controller.getSubscription('uuid', req, res);
+      }
+      const expected = `${routing}\nvless://id@${relay ? 'relay.example' : 'original'}:443`;
+      expect(res.send).toHaveBeenCalledWith(
+        Buffer.from(expected).toString('base64'),
+      );
+    },
+  );
+
   describe('getSubscription', () => {
     const mockSubscription = {
       uuid: 'test-uuid',

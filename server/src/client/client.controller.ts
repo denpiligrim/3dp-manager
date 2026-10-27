@@ -21,6 +21,7 @@ import { Subscription } from '../subscriptions/entities/subscription.entity';
 import { Public } from '../auth/public.decorator';
 import { Tunnel } from 'src/tunnels/entities/tunnel.entity';
 import { generateSubscriptionHtmlWithQr } from './templates/subscription.template';
+import { buildHappRoutingLink } from '../subscriptions/happ-routing';
 
 @Controller()
 export class ClientController {
@@ -54,7 +55,7 @@ export class ClientController {
     const links =
       sub.inbounds?.map((i) => i.link).filter((l) => l && l.length > 0) || [];
 
-    const plainTextList = links.join('\n');
+    const plainTextList = [...this.getRoutingLinks(sub), ...links].join('\n');
     const base64Config = Buffer.from(plainTextList).toString('base64');
 
     const userAgent = req.headers['user-agent'] || '';
@@ -129,7 +130,7 @@ export class ClientController {
           return this.patchLink(i.link, relayHost);
         }) || [];
 
-    const plainTextList = links.join('\n');
+    const plainTextList = [...this.getRoutingLinks(sub), ...links].join('\n');
     const base64Config = Buffer.from(plainTextList).toString('base64');
 
     const userAgent = req.headers['user-agent'] || '';
@@ -166,6 +167,19 @@ export class ClientController {
       res.setHeader('Content-Type', 'text/html');
       res.send(html);
     }
+  }
+
+  private getRoutingLinks(sub: Subscription): string[] {
+    return (sub.inboundsConfig || [])
+      .filter((config) => config.type === 'happ-routing')
+      .flatMap((config) => {
+        try {
+          return [buildHappRoutingLink(config.routingProfile)];
+        } catch {
+          this.logger.warn('Skipping invalid Happ routing profile');
+          return [];
+        }
+      });
   }
 
   private patchLink(link: string, newHost: string): string {

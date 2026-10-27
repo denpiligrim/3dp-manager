@@ -42,7 +42,8 @@ const setupMockGet = (overrides?: {
   mockGet.mockImplementation((url: string) => {
     if (url === '/subscriptions') return Promise.resolve({ data: overrides?.subscriptions || [] })
     if (url === '/tunnels') return Promise.resolve({ data: overrides?.tunnels || [] })
-    if (url === '/domains/all') return Promise.resolve({ data: overrides?.domains || [] })
+    if (url === '/nodes') return Promise.resolve({ data: [{ id: 'node-1', name: 'Main', isMain: true, url: 'https://node.example' }] })
+    if (url === '/domains/all') return Promise.resolve({ data: overrides?.domains || [{ name: 'example.com', isEnabled: true }] })
     return Promise.resolve({ data: {} })
   })
 }
@@ -242,7 +243,7 @@ describe('SubscriptionsPage', () => {
       fireEvent.click(createButton)
 
       await waitFor(() => {
-        expect(screen.getByText('Инбаунды (9/20)')).toBeInTheDocument()
+        expect(screen.getByText('Инбаунды (10/20)')).toBeInTheDocument()
       })
     })
 
@@ -286,7 +287,7 @@ describe('SubscriptionsPage', () => {
       fireEvent.click(createButton)
 
       await waitFor(() => {
-        expect(screen.getByText('Инбаунды (9/20)')).toBeInTheDocument()
+        expect(screen.getByText('Инбаунды (10/20)')).toBeInTheDocument()
       })
     })
 
@@ -314,7 +315,7 @@ describe('SubscriptionsPage', () => {
       fireEvent.click(addButton)
 
       await waitFor(() => {
-        expect(screen.getByText('Инбаунды (10/20)')).toBeInTheDocument()
+        expect(screen.getByText('Инбаунды (11/20)')).toBeInTheDocument()
       })
     })
 
@@ -417,6 +418,23 @@ describe('SubscriptionsPage', () => {
   })
 
   describe('Редактирование подписки', () => {
+    it('сохраняет профиль Happ без порта и ноды', async () => {
+      const profile = '{"Name":"Test"}'
+      setupMockGet({ subscriptions: [{
+        id: '1', name: 'Happ', uuid: 'abc-123', inbounds: [],
+        inboundsConfig: [{ type: 'happ-routing', routingProfile: profile }],
+      }] })
+      mockPut.mockResolvedValue({})
+      renderSubscriptionsPage()
+      fireEvent.click(await screen.findByTestId('icon-MoreVert'))
+      fireEvent.click(await screen.findByText('Редактировать'))
+      expect(await screen.findByLabelText('Профиль Happ (JSON, base64 или ссылка)')).toHaveValue(profile)
+      fireEvent.click(screen.getByText('Сохранить'))
+      await waitFor(() => expect(mockPut).toHaveBeenCalledWith('/subscriptions/1', {
+        name: 'Happ', inboundsConfig: [{ type: 'happ-routing', routingProfile: profile }],
+      }))
+    })
+
     it('должен открывать диалог редактирования', async () => {
       const mockSubs = [
         { id: '1', name: 'Test Sub', uuid: 'abc-123', inbounds: [{ type: 'vless', port: 443, sni: 'example.com' }], isAutoRotationEnabled: true }
