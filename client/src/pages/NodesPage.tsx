@@ -428,6 +428,9 @@ export default function NodesPage() {
         <DialogTitle>Удалить ноду?</DialogTitle>
         <DialogContent>
           <Typography sx={{ mb: 2 }}>Вы уверены, что хотите удалить ноду {deleteTarget?.name}?</Typography>
+          {nodes.length === 1 && (
+            <Alert severity="warning" sx={{ mb: 2 }}>Это последняя нода. При её удалении будут удалены все подписки и их подключения.</Alert>
+          )}
           <Stack direction="row" alignItems="center" spacing={1}>
             <Switch checked={forceDelete} onChange={(e) => setForceDelete(e.target.checked)} slotProps={{ input: { 'aria-label': 'Принудительное удаление ноды' } }} />
             <Typography variant="body2">

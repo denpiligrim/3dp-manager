@@ -559,7 +559,7 @@ describe('SubscriptionsPage', () => {
         await waitFor(() => expect(mockDelete).toHaveBeenLastCalledWith('/subscriptions/1?force=true'))
         expect(await screen.findByText('Подписка удалена')).toBeInTheDocument()
       } else {
-        fireEvent.click(screen.getByRole('button', { name: 'Отмена' }))
+        fireEvent.click(screen.getByRole('button', { name: 'Отменить' }))
         await waitFor(() => expect(screen.queryByText('Не удалось удалить все инбаунды')).not.toBeInTheDocument())
         expect(mockDelete).toHaveBeenCalledTimes(1)
         expect(screen.getByText('Test Sub')).toBeInTheDocument()

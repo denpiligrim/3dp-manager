@@ -185,7 +185,7 @@ describe('SubscriptionsController', () => {
 
       await controller.remove('id1');
 
-      expect(service.remove).toHaveBeenCalledWith('id1');
+      expect(service.remove).toHaveBeenCalledWith('id1', false);
     });
   });
 });

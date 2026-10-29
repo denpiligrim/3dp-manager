@@ -19,6 +19,7 @@ describe('Node deletion', () => {
   it('sends force only after explicit selection and resets it on cancel', async () => {
     render(<NodesPage />)
     fireEvent.click(await screen.findByTestId('icon-Delete'))
+    expect(screen.getByText('Это последняя нода. При её удалении будут удалены все подписки и их подключения.')).toBeInTheDocument()
     fireEvent.click(await screen.findByLabelText('Принудительное удаление ноды'))
     fireEvent.click(within(screen.getByRole('dialog')).getByText('Отмена'))
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())

@@ -95,6 +95,35 @@ describe('NodesService', () => {
     expect(nodeRepo.remove).toHaveBeenCalledWith(node);
   });
 
+  it.each([false, true])('deletes all subscriptions when the last node is removed (force=%s)', async (force) => {
+    const node = { id: 'last', isMain: true } as Node;
+    const nodeRepo = createNodeRepo(jest.fn().mockResolvedValueOnce(node).mockResolvedValue(null));
+    nodeRepo.count.mockResolvedValue(1);
+    const { service, subscriptionsRepo, tunnelsRepo, inboundsRepo, xuiService } = createService(nodeRepo);
+    inboundsRepo.find.mockResolvedValue([{ id: 1, xuiId: 101, nodeId: 'last' }]);
+
+    await service.remove('last', force);
+
+    expect(subscriptionsRepo.createQueryBuilder).toHaveBeenCalledTimes(1);
+    expect(subscriptionsRepo.createQueryBuilder.mock.results[0].value.delete).toHaveBeenCalled();
+    expect(subscriptionsRepo.createQueryBuilder.mock.results[0].value.execute).toHaveBeenCalled();
+    expect(tunnelsRepo.createQueryBuilder.mock.results[0].value.execute).toHaveBeenCalled();
+    expect(nodeRepo.remove).toHaveBeenCalledWith(node);
+    expect(xuiService.deleteInbound).toHaveBeenCalledTimes(force ? 0 : 1);
+  });
+
+  it('preserves subscriptions when another node remains', async () => {
+    const node = { id: 'one', isMain: false } as Node;
+    const nodeRepo = createNodeRepo(jest.fn().mockResolvedValue(node));
+    nodeRepo.count.mockResolvedValue(2);
+    const { service, subscriptionsRepo } = createService(nodeRepo);
+
+    await service.remove('one');
+
+    expect(subscriptionsRepo.createQueryBuilder).not.toHaveBeenCalled();
+    expect(nodeRepo.remove).toHaveBeenCalledWith(node);
+  });
+
   it('keeps the node when normal remote cleanup fails', async () => {
     const node = { id: 'offline', isMain: false } as Node;
     const nodeRepo = createNodeRepo(jest.fn().mockResolvedValue(node));

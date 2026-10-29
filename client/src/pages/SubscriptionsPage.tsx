@@ -933,7 +933,7 @@ export default function SubscriptionsPage() {
           <Typography sx={{ mt: 2 }}>При принудительном удалении подписка будет удалена, даже если часть инбаундов осталась в 3x-ui. Уже удалённые инбаунды при отмене не восстанавливаются.</Typography>
         </DialogContent>
         <DialogActions>
-          <Button disabled={deleting} onClick={() => setDeleteFailure(null)}>Отмена</Button>
+          <Button disabled={deleting} onClick={() => setDeleteFailure(null)}>Отменить</Button>
           <Button disabled={deleting} color="error" variant="contained" onClick={() => { if (deleteFailure) void deleteSubscription(deleteFailure.id, true); }}>Удалить принудительно</Button>
         </DialogActions>
       </Dialog>
