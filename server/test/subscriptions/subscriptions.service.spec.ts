@@ -165,6 +165,8 @@ describe('SubscriptionsService', () => {
       expect(subRepo.create).toHaveBeenCalledWith({
         name: 'Test Subscription',
         uuid: expect.any(String),
+        clientId: expect.stringMatching(/^3dp-/),
+        clientAutoCreate: true,
         inboundsConfig: createDto.inboundsConfig,
         isAutoRotationEnabled: true,
         node: null,
@@ -328,6 +330,29 @@ describe('SubscriptionsService', () => {
     });
   });
 
+  it('stores a supplied client identifier without enabling automatic creation', async () => {
+    await service.create({ name: 'Shared', clientId: ' existing-client ' });
+    expect(mockSubRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientId: 'existing-client',
+        clientAutoCreate: false,
+      }),
+    );
+  });
+
+  it('preserves automatic client ownership when editing an unchanged identifier', async () => {
+    const sub = {
+      id: 'test',
+      clientId: '3dp-generated',
+      clientAutoCreate: true,
+    };
+    mockSubRepo.findOne.mockResolvedValue(sub);
+    await service.update('test', { clientId: '3dp-generated' });
+    expect(mockSubRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ clientAutoCreate: true }),
+    );
+  });
+
   describe('remove', () => {
     const subWithInbounds: Subscription = {
       id: 'test-id',
@@ -375,20 +400,26 @@ describe('SubscriptionsService', () => {
       expect(subRepo.remove).toHaveBeenCalledWith(subWithInbounds);
     });
 
-    it.each([false, new Error('Panel unavailable')])('сохраняет подписку при ошибке удаления: %s', async (failure) => {
-      mockSubRepo.findOne.mockResolvedValue(subWithInbounds);
-      if (failure instanceof Error) mockXuiService.deleteInbound.mockRejectedValue(failure);
-      else mockXuiService.deleteInbound.mockResolvedValue(false);
+    it.each([false, new Error('Panel unavailable')])(
+      'сохраняет подписку при ошибке удаления: %s',
+      async (failure) => {
+        mockSubRepo.findOne.mockResolvedValue(subWithInbounds);
+        if (failure instanceof Error)
+          mockXuiService.deleteInbound.mockRejectedValue(failure);
+        else mockXuiService.deleteInbound.mockResolvedValue(false);
 
-      await expect(service.remove('test-id')).rejects.toMatchObject({
-        response: { code: 'INBOUND_DELETE_FAILED' },
-      });
-      expect(subRepo.remove).not.toHaveBeenCalled();
-    });
+        await expect(service.remove('test-id')).rejects.toMatchObject({
+          response: { code: 'INBOUND_DELETE_FAILED' },
+        });
+        expect(subRepo.remove).not.toHaveBeenCalled();
+      },
+    );
 
     it('принудительно удаляет подписку и продолжает очистку после ошибок', async () => {
       mockSubRepo.findOne.mockResolvedValue(subWithInbounds);
-      mockXuiService.deleteInbound.mockRejectedValueOnce(new Error('Panel unavailable')).mockResolvedValueOnce(false);
+      mockXuiService.deleteInbound
+        .mockRejectedValueOnce(new Error('Panel unavailable'))
+        .mockResolvedValueOnce(false);
 
       await service.remove('test-id', true);
 

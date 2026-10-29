@@ -62,6 +62,127 @@ describe('XuiService', () => {
     jest.resetAllMocks();
   });
 
+  describe('shared subscription clients', () => {
+    const stored = {
+      id: 17,
+      uuid: 'real-uuid',
+      email: 'shared',
+      password: 'real-password',
+      auth: 'real-auth',
+    };
+    beforeEach(() => {
+      jest
+        .spyOn(
+          service as unknown as {
+            createAuthenticatedApi: () => Promise<typeof mockAxiosInstance>;
+          },
+          'createAuthenticatedApi',
+        )
+        .mockResolvedValue(mockAxiosInstance);
+      mockAxiosInstance.get.mockResolvedValue({
+        data: { success: true, obj: { client: stored } },
+      });
+      mockAxiosInstance.post.mockResolvedValue({ data: { success: true } });
+    });
+
+    it('creates an unattached client before reading its actual credentials', async () => {
+      const result = await service.prepareSubscriptionClient('shared', true);
+      const [path, payload] = mockAxiosInstance.post.mock.calls[0] as [
+        string,
+        { data: string },
+      ];
+      expect(path).toBe('/panel/api/clients/import');
+      expect(JSON.parse(payload.data)).toEqual([
+        expect.objectContaining({
+          client: expect.objectContaining({ email: 'shared' }),
+          inboundIds: [],
+        }),
+      ]);
+      expect(result.id).toBe('real-uuid');
+      expect(result.password).toBe('real-password');
+      expect(mockAxiosInstance.post.mock.invocationCallOrder[0]).toBeLessThan(
+        mockAxiosInstance.get.mock.invocationCallOrder[0],
+      );
+    });
+
+    it('uses an existing client without overwriting it', async () => {
+      expect(
+        await service.prepareSubscriptionClient('shared', false),
+      ).toMatchObject({ id: 'real-uuid', email: 'shared' });
+      expect(mockAxiosInstance.post).not.toHaveBeenCalled();
+    });
+
+    it('resolves numeric record IDs separately on each panel', async () => {
+      mockAxiosInstance.get.mockResolvedValueOnce({
+        data: { success: true, obj: [{ client: stored }] },
+      });
+      await service.prepareSubscriptionClient('17', false);
+      expect(mockAxiosInstance.get).toHaveBeenLastCalledWith(
+        '/panel/api/clients/get/shared',
+      );
+    });
+
+    it('rejects a missing existing client without creating another', async () => {
+      mockAxiosInstance.get.mockResolvedValue({ data: { success: false } });
+      await expect(
+        service.prepareSubscriptionClient('missing', false),
+      ).rejects.toThrow('не найден');
+      expect(mockAxiosInstance.post).not.toHaveBeenCalled();
+    });
+
+    it('creates an empty inbound, attaches the existing client and preserves its actual port', async () => {
+      const add = jest
+        .spyOn(service, 'addInbound')
+        .mockImplementation(async (config) => {
+          config.port = 20001;
+          return 42;
+        });
+      const config = {
+        port: 443,
+        protocol: 'vless',
+        settings: JSON.stringify({
+          clients: [{ id: 'temporary' }],
+          decryption: 'none',
+        }),
+        streamSettings: '{}',
+      };
+      await expect(
+        service.addInboundForClient(config, { email: 'shared' }),
+      ).resolves.toBe(42);
+      expect(
+        JSON.parse((add.mock.calls[0][0] as { settings: string }).settings)
+          .clients,
+      ).toEqual([]);
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        '/panel/api/clients/shared/attach',
+        { inboundIds: [42] },
+      );
+      expect(JSON.parse(config.settings).clients[0]).toMatchObject({
+        id: 'real-uuid',
+        password: 'real-password',
+      });
+      expect(config.port).toBe(20001);
+    });
+
+    it('cleans up the new inbound if attachment fails', async () => {
+      jest.spyOn(service, 'addInbound').mockResolvedValue(42);
+      const cleanup = jest
+        .spyOn(service, 'deleteInbound')
+        .mockResolvedValue(true);
+      mockAxiosInstance.post.mockResolvedValue({ data: { success: false } });
+      const config = {
+        port: 443,
+        protocol: 'vless',
+        settings: '{}',
+        streamSettings: '{}',
+      };
+      expect(
+        await service.addInboundForClient(config, { email: 'shared' }),
+      ).toBeNull();
+      expect(cleanup).toHaveBeenCalledWith(42, undefined);
+    });
+  });
+
   describe('CSRF compatibility', () => {
     const node = {
       url: 'https://panel.example/base',

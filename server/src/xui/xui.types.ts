@@ -32,6 +32,7 @@ export interface XuiInboundRaw {
 }
 
 export interface XuiInboundClient {
+  auth?: string;
   id?: string;
   flow?: string;
   email?: string;

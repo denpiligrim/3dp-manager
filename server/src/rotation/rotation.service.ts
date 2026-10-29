@@ -14,6 +14,7 @@ import { XuiService } from '../xui/xui.service';
 import { InboundBuilderService } from '../inbounds/inbound-builder.service';
 import { XuiInboundRaw } from '../inbounds/xui-inbound.types';
 import { v4 as uuidv4 } from 'uuid';
+import { XuiInboundClient } from '../xui/xui.types';
 
 @Injectable()
 export class RotationService implements OnModuleInit {
@@ -183,6 +184,38 @@ export class RotationService implements OnModuleInit {
 
     const inboundsConfig = sub.inboundsConfig || [];
     const baseNode = sub.node ?? defaultNode ?? undefined;
+    const clients = new Map<string, XuiInboundClient>();
+    if (sub.clientId) {
+      try {
+        for (const config of inboundsConfig) {
+          if (['custom', 'happ-routing', 'incy-routing'].includes(config.type))
+            continue;
+          const node = await this.resolveNode(
+            config.nodeId,
+            sub.node,
+            defaultNode,
+          );
+          const key = node?.id || 'default';
+          if (!clients.has(key)) {
+            clients.set(
+              key,
+              await this.xuiService.prepareSubscriptionClient(
+                sub.clientId,
+                sub.clientAutoCreate === true,
+                node,
+              ),
+            );
+          }
+        }
+      } catch (error) {
+        this.logger.error(
+          error instanceof Error
+            ? error.message
+            : 'Ошибка подготовки клиента 3x-ui',
+        );
+        return false;
+      }
+    }
     const needsReality = inboundsConfig.some((config) =>
       config.type?.endsWith('-reality'),
     );
@@ -219,6 +252,7 @@ export class RotationService implements OnModuleInit {
         sub.node,
         defaultNode,
       );
+      const client = clients.get(targetNode?.id || 'default');
       const resolvedRelay = await this.resolveRelay(
         config.relayServerId,
         sub.relayServer,
@@ -276,10 +310,13 @@ export class RotationService implements OnModuleInit {
         if (config.name?.trim()) {
           hysteriaConfig.remark = config.name.trim();
         }
-        const xuiId = await this.xuiService.addInbound(
-          hysteriaConfig,
-          targetNode,
-        );
+        const xuiId = client
+          ? await this.xuiService.addInboundForClient(
+              hysteriaConfig,
+              client,
+              targetNode,
+            )
+          : await this.xuiService.addInbound(hysteriaConfig, targetNode);
         if (!xuiId) {
           rejectedTypes.push(type);
           this.logger.warn(
@@ -377,14 +414,24 @@ export class RotationService implements OnModuleInit {
         xuiConfig.remark = config.name.trim();
       }
 
-      const xuiId = await this.xuiService.addInbound(xuiConfig, targetNode);
+      const xuiId = client
+        ? await this.xuiService.addInboundForClient(
+            xuiConfig,
+            client,
+            targetNode,
+          )
+        : await this.xuiService.addInbound(xuiConfig, targetNode);
 
       if (xuiId && xuiConfig) {
         const settings = JSON.parse(xuiConfig.settings) as {
           clients?: Array<{ id?: string; password?: string }>;
         };
         const idOrPass =
-          settings.clients?.[0]?.id || settings.clients?.[0]?.password || '';
+          xuiConfig.protocol === 'trojan'
+            ? settings.clients?.[0]?.password || ''
+            : settings.clients?.[0]?.id ||
+              settings.clients?.[0]?.password ||
+              '';
 
         const fullLink = this.inboundBuilder.buildInboundLink(
           xuiConfig,

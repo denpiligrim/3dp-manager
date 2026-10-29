@@ -58,6 +58,7 @@ interface Subscription {
   id: string;
   name: string;
   uuid: string;
+  clientId?: string;
   inbounds: unknown[];
   inboundsConfig?: InboundConfigUI[];
   isAutoRotationEnabled?: boolean;
@@ -132,6 +133,7 @@ export default function SubscriptionsPage() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('');
+  const [clientId, setClientId] = useState('');
   const [inbounds, setInbounds] = useState<InboundConfigUI[]>([]);
   const [portErrors, setPortErrors] = useState<Record<string, string>>({});
   const [linksOpen, setLinksOpen] = useState(false);
@@ -267,6 +269,7 @@ export default function SubscriptionsPage() {
 
     setEditingId(null);
     setName('');
+    setClientId('');
     setInbounds([
       createInbound('hysteria2-udp'),
       createInbound('vless-xhttp-reality'),
@@ -286,6 +289,7 @@ export default function SubscriptionsPage() {
   const handleOpenEdit = (sub: Subscription) => {
     setEditingId(sub.id);
     setName(sub.name);
+    setClientId(sub.clientId || '');
     setInbounds(
       (sub.inboundsConfig?.length ? sub.inboundsConfig : [createInbound()]).map((item) => {
         const nodeId = item.nodeId || getDefaultNodeId();
@@ -406,6 +410,7 @@ export default function SubscriptionsPage() {
 
     const payload = {
       name,
+      clientId: clientId.trim(),
       inboundsConfig: inbounds.map((inbound) => {
         if (inbound.type === 'custom') {
           return { type: inbound.type, link: inbound.link };
@@ -765,6 +770,7 @@ export default function SubscriptionsPage() {
         <DialogTitle variant="h5">{editingId ? 'Редактировать подписку' : 'Новая подписка'}</DialogTitle>
         <DialogContent dividers sx={{ maxHeight: '72vh' }}>
           <TextField autoFocus margin="dense" label="Имя подписки" fullWidth value={name} onChange={(e) => setName(e.target.value)} sx={{ mb: 2 }} />
+          <TextField margin="dense" label="ID клиента (необязательно)" fullWidth value={clientId} onChange={(e) => setClientId(e.target.value)} helperText="ID или email / имя клиента из раздела Clients 3x-ui. Клиент должен существовать на каждой выбранной ноде. Пустое поле — создать клиента автоматически перед генерацией подключений." sx={{ mb: 2 }} />
           <Typography variant="h6" sx={{ mb: 2 }}>Инбаунды ({inbounds.length}/20)</Typography>
           <Box sx={{ maxHeight: '52vh', overflow: 'auto', pr: 1 }}>
             {inbounds.map((inbound, index) => (

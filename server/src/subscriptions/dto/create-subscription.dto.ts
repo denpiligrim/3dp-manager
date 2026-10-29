@@ -1,5 +1,6 @@
 import {
   IsString,
+  MaxLength,
   IsArray,
   ValidateNested,
   IsOptional,
@@ -89,6 +90,11 @@ export class InboundConfigDto {
 }
 
 export class CreateSubscriptionDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(254)
+  clientId?: string;
+
   @IsString()
   name: string;
 

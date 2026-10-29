@@ -80,6 +80,8 @@ describe('RotationService', () => {
   };
 
   const mockXuiService = {
+    prepareSubscriptionClient: jest.fn(),
+    addInboundForClient: jest.fn(),
     login: jest.fn(),
     deleteInbound: jest.fn(),
     addInbound: jest.fn(),
@@ -430,6 +432,92 @@ describe('RotationService', () => {
   });
 
   describe('rotateSubscription (private)', () => {
+    it.each([false, true])(
+      'prepares a single client per node and reuses it for all inbounds (auto=%s)',
+      async (auto) => {
+        const a = { id: 'a', name: 'A' };
+        const b = { id: 'b', name: 'B' };
+        const clientA = { email: 'shared', id: 'uuid-a' };
+        const clientB = { email: 'shared', id: 'uuid-b' };
+        jest
+          .spyOn(service as any, 'resolveNode')
+          .mockImplementation(async (id) => (id === 'b' ? b : a));
+        mockXuiService.prepareSubscriptionClient.mockImplementation(
+          async (_id, _auto, node) => (node.id === 'b' ? clientB : clientA),
+        );
+        mockXuiService.addInboundForClient.mockResolvedValue(42);
+        mockInboundBuilder.buildVlessWs.mockReturnValue({
+          port: 12000,
+          protocol: 'vless',
+          settings: '{}',
+          streamSettings: '{}',
+        });
+        const sub = {
+          name: 'Test',
+          clientId: 'shared',
+          clientAutoCreate: auto,
+          inbounds: [],
+          inboundsConfig: [
+            { type: 'vless-ws', nodeId: 'a', port: 12000 },
+            { type: 'vless-ws', nodeId: 'a', port: 12001 },
+            { type: 'vless-ws', nodeId: 'b', port: 12002 },
+            { type: 'custom', link: 'custom' },
+          ],
+        };
+        expect(await (service as any).rotateSubscription(sub, [], null)).toBe(
+          true,
+        );
+        expect(mockXuiService.prepareSubscriptionClient).toHaveBeenCalledTimes(
+          2,
+        );
+        expect(mockXuiService.prepareSubscriptionClient).toHaveBeenCalledWith(
+          'shared',
+          auto,
+          a,
+        );
+        expect(mockXuiService.prepareSubscriptionClient).toHaveBeenCalledWith(
+          'shared',
+          auto,
+          b,
+        );
+        expect(mockXuiService.addInboundForClient).toHaveBeenNthCalledWith(
+          1,
+          expect.anything(),
+          clientA,
+          a,
+        );
+        expect(mockXuiService.addInboundForClient).toHaveBeenNthCalledWith(
+          2,
+          expect.anything(),
+          clientA,
+          a,
+        );
+        expect(mockXuiService.addInboundForClient).toHaveBeenNthCalledWith(
+          3,
+          expect.anything(),
+          clientB,
+          b,
+        );
+        expect(mockXuiService.addInbound).not.toHaveBeenCalled();
+      },
+    );
+
+    it('preserves existing inbounds if client preparation fails on a node', async () => {
+      mockXuiService.prepareSubscriptionClient.mockRejectedValueOnce(
+        new Error('Client missing'),
+      );
+      const sub = {
+        clientId: 'missing',
+        inbounds: [{ id: 'old', xuiId: 1 }],
+        inboundsConfig: [{ type: 'vless-ws', port: 12000 }],
+      };
+      expect(await (service as any).rotateSubscription(sub, [], null)).toBe(
+        false,
+      );
+      expect(mockXuiService.addInboundForClient).not.toHaveBeenCalled();
+      expect(mockInboundRepo.delete).not.toHaveBeenCalled();
+    });
+
     it.each([false, true])(
       'creates replacements before cleanup (force=%s)',
       async (force) => {

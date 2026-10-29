@@ -372,6 +372,19 @@ describe('SubscriptionsPage', () => {
   })
 
   describe('Сохранение подписки', () => {
+    it.each(['', ' shared-client '])('передаёт необязательный ID клиента (%s)', async (identifier) => {
+      setupMockGet()
+      mockPost.mockResolvedValue({ data: {} })
+      renderSubscriptionsPage()
+      fireEvent.click(await screen.findByText('Создать'))
+      fireEvent.change(await screen.findByLabelText('Имя подписки'), { target: { value: 'Shared' } })
+      const field = screen.getByLabelText('ID клиента (необязательно)')
+      expect(field).toHaveValue('')
+      fireEvent.change(field, { target: { value: identifier } })
+      fireEvent.click(screen.getByText('Сохранить'))
+      await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/subscriptions', expect.objectContaining({ clientId: identifier.trim() })))
+    })
+
     it('должен создавать новую подписку', async () => {
       setupMockGet()
       mockPost.mockResolvedValue({})
@@ -449,7 +462,7 @@ describe('SubscriptionsPage', () => {
       expect(await screen.findByLabelText(scheme === 'incy' ? 'Профиль INCY (JSON, base64, URL или ссылка)' : 'Профиль Happ (JSON, base64 или ссылка)')).toHaveValue(profile)
       fireEvent.click(screen.getByText('Сохранить'))
       await waitFor(() => expect(mockPut).toHaveBeenCalledWith('/subscriptions/1', {
-        name: 'Happ', inboundsConfig: [{ type: `${scheme}-routing`, routingProfile: profile }],
+        name: 'Happ', clientId: '', inboundsConfig: [{ type: `${scheme}-routing`, routingProfile: profile }],
       }))
     })
 

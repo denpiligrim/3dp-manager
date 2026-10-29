@@ -36,6 +36,8 @@ export class SubscriptionsService {
     const sub = this.subRepo.create({
       name: dto.name,
       uuid: uuidv4(),
+      clientId: dto.clientId?.trim() || `3dp-${uuidv4()}`,
+      clientAutoCreate: !dto.clientId?.trim(),
       inboundsConfig: dto.inboundsConfig || [],
       isAutoRotationEnabled: dto.isAutoRotationEnabled ?? true,
       node: await this.resolveNode(dto.nodeId),
@@ -63,6 +65,14 @@ export class SubscriptionsService {
     if (dto.inboundsConfig) {
       await this.validateInboundsConfig(dto.inboundsConfig);
       sub.inboundsConfig = dto.inboundsConfig;
+    }
+
+    if (
+      dto.clientId != null &&
+      dto.clientId.trim() !== (sub.clientId || '')
+    ) {
+      sub.clientId = dto.clientId.trim() || `3dp-${uuidv4()}`;
+      sub.clientAutoCreate = !dto.clientId.trim();
     }
 
     if (dto.isAutoRotationEnabled !== undefined) {

@@ -22,6 +22,12 @@ export class Subscription {
   @Column({ unique: true })
   uuid: string;
 
+  @Column({ nullable: true })
+  clientId?: string;
+
+  @Column({ default: false })
+  clientAutoCreate?: boolean;
+
   @Column({ default: true })
   isEnabled: boolean;
 
