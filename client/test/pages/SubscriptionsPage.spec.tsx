@@ -544,6 +544,28 @@ describe('SubscriptionsPage', () => {
   })
 
   describe('Удаление подписки', () => {
+    it.each([false, true])('предлагает принудительное удаление или отмену (force=%s)', async (force) => {
+      mockDelete.mockReset()
+      setupMockGet({ subscriptions: [{ id: '1', name: 'Test Sub', uuid: 'abc', inbounds: [] }] })
+      mockDelete.mockRejectedValueOnce({ response: { data: { code: 'INBOUND_DELETE_FAILED', message: 'Инбаунд недоступен' } } }).mockResolvedValueOnce({})
+      renderSubscriptionsPage()
+      fireEvent.click(await screen.findByTestId('icon-MoreVert'))
+      fireEvent.click(await screen.findByText('Удалить'))
+      fireEvent.click(screen.getAllByText('Удалить')[1])
+      const forceButton = await screen.findByRole('button', { name: 'Удалить принудительно' })
+      expect(screen.getByText('Не удалось удалить все инбаунды')).toBeInTheDocument()
+      if (force) {
+        fireEvent.click(forceButton)
+        await waitFor(() => expect(mockDelete).toHaveBeenLastCalledWith('/subscriptions/1?force=true'))
+        expect(await screen.findByText('Подписка удалена')).toBeInTheDocument()
+      } else {
+        fireEvent.click(screen.getByRole('button', { name: 'Отмена' }))
+        await waitFor(() => expect(screen.queryByText('Не удалось удалить все инбаунды')).not.toBeInTheDocument())
+        expect(mockDelete).toHaveBeenCalledTimes(1)
+        expect(screen.getByText('Test Sub')).toBeInTheDocument()
+      }
+    })
+
     it('должен открывать диалог подтверждения удаления', async () => {
       const mockSubs = [
         { id: '1', name: 'Test Sub', uuid: 'abc-123', inbounds: [], isAutoRotationEnabled: true }

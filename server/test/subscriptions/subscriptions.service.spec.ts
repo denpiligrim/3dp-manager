@@ -375,6 +375,27 @@ describe('SubscriptionsService', () => {
       expect(subRepo.remove).toHaveBeenCalledWith(subWithInbounds);
     });
 
+    it.each([false, new Error('Panel unavailable')])('сохраняет подписку при ошибке удаления: %s', async (failure) => {
+      mockSubRepo.findOne.mockResolvedValue(subWithInbounds);
+      if (failure instanceof Error) mockXuiService.deleteInbound.mockRejectedValue(failure);
+      else mockXuiService.deleteInbound.mockResolvedValue(false);
+
+      await expect(service.remove('test-id')).rejects.toMatchObject({
+        response: { code: 'INBOUND_DELETE_FAILED' },
+      });
+      expect(subRepo.remove).not.toHaveBeenCalled();
+    });
+
+    it('принудительно удаляет подписку и продолжает очистку после ошибок', async () => {
+      mockSubRepo.findOne.mockResolvedValue(subWithInbounds);
+      mockXuiService.deleteInbound.mockRejectedValueOnce(new Error('Panel unavailable')).mockResolvedValueOnce(false);
+
+      await service.remove('test-id', true);
+
+      expect(xuiService.deleteInbound).toHaveBeenCalledTimes(2);
+      expect(subRepo.remove).toHaveBeenCalledWith(subWithInbounds);
+    });
+
     it('должен удалить подписку без инбаундов', async () => {
       const subWithoutInbounds: Subscription = {
         ...subWithInbounds,

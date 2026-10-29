@@ -460,17 +460,35 @@ export default function SubscriptionsPage() {
     }
   };
 
+  const [deleteFailure, setDeleteFailure] = useState<{ id: string; message: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const deleteSubscription = async (id: string, force = false) => {
+    setDeleting(true);
+    try {
+      await api.delete(`/subscriptions/${id}${force ? '?force=true' : ''}`);
+      setDeleteFailure(null);
+      loadSubs();
+      setSnackbar({ open: true, type: 'success', message: 'Подписка удалена' });
+    } catch (error: unknown) {
+      const data = (error as { response?: { data?: { code?: string; message?: string } } })?.response?.data;
+      const message = data?.message || 'Не удалось удалить подписку';
+      setSnackbar({ open: true, type: 'error', message });
+      if (!force && data?.code === 'INBOUND_DELETE_FAILED') {
+        setDeleteFailure({ id, message });
+      }
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleDelete = (id: string) => {
     setConfirmDialog({
       open: true,
       title: 'Удалить подписку и все соединения?',
       confirmText: 'Удалить',
       confirmColor: 'error',
-      onConfirm: async () => {
-        await api.delete(`/subscriptions/${id}`);
-        loadSubs();
-        setSnackbar({ open: true, type: 'success', message: 'Подписка удалена' });
-      },
+      onConfirm: () => { void deleteSubscription(id); },
     });
   };
 
@@ -905,6 +923,18 @@ export default function SubscriptionsPage() {
           <Button onClick={() => { confirmDialog.onConfirm(forceRotation); setConfirmDialog({ ...confirmDialog, open: false }); }} variant="contained" color={confirmDialog.confirmColor}>
             {confirmDialog.confirmText}
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={deleteFailure !== null} onClose={() => { if (!deleting) setDeleteFailure(null); }}>
+        <DialogTitle>Не удалось удалить все инбаунды</DialogTitle>
+        <DialogContent>
+          <Typography>{deleteFailure?.message}</Typography>
+          <Typography sx={{ mt: 2 }}>При принудительном удалении подписка будет удалена, даже если часть инбаундов осталась в 3x-ui. Уже удалённые инбаунды при отмене не восстанавливаются.</Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button disabled={deleting} onClick={() => setDeleteFailure(null)}>Отмена</Button>
+          <Button disabled={deleting} color="error" variant="contained" onClick={() => { if (deleteFailure) void deleteSubscription(deleteFailure.id, true); }}>Удалить принудительно</Button>
         </DialogActions>
       </Dialog>
 

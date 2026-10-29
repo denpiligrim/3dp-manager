@@ -82,7 +82,7 @@ export class SubscriptionsService {
     return this.subRepo.save(sub);
   }
 
-  async remove(id: string) {
+  async remove(id: string, force = false) {
     const sub = await this.subRepo.findOne({
       where: { id },
       relations: ['inbounds', 'inbounds.node'],
@@ -93,15 +93,19 @@ export class SubscriptionsService {
       for (const inbound of sub.inbounds) {
         if (!inbound.xuiId || inbound.xuiId <= 0) continue;
 
-        const isDeleted = await this.xuiService.deleteInbound(
-          inbound.xuiId,
-          await this.resolveInboundNode(inbound),
-        );
-
-        if (!isDeleted) {
-          throw new BadRequestException(
-            `Failed to delete inbound ${inbound.xuiId} from 3x-ui`,
+        try {
+          const isDeleted = await this.xuiService.deleteInbound(
+            inbound.xuiId,
+            await this.resolveInboundNode(inbound),
           );
+          if (!isDeleted) throw new Error('Inbound deletion failed');
+        } catch {
+          if (!force) {
+            throw new BadRequestException({
+              code: 'INBOUND_DELETE_FAILED',
+              message: `Не удалось удалить инбаунд ${inbound.xuiId} из 3x-ui. Можно удалить подписку принудительно.`,
+            });
+          }
         }
       }
     }
