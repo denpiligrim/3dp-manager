@@ -1,9 +1,20 @@
-html {
-  font-family: "Inter", "Roboto", "Helvetica", "Arial", sans-serif;
+﻿html {
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    "Roboto",
+    "Helvetica",
+    "Arial",
+    sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
@@ -11,38 +22,60 @@ body {
   font-family: inherit;
 }
 
-.animated-container {
-  background: linear-gradient(-45deg, #111827, #15122c, #24243e, #0B0F19);
-  background-size: 400% 400%;
-  animation: gradientBG 15s ease infinite;
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
 }
 
-@keyframes gradientBG {
-  0% {
-    background-position: 0% 50%;
-  }
-
-  50% {
-    background-position: 100% 50%;
-  }
-
-  100% {
-    background-position: 0% 50%;
-  }
+/* Static gradients avoid continuous repainting on mobile devices. */
+.animated-container {
+  background-color: #101925;
+  background-image:
+    radial-gradient(ellipse at 15% 15%, #243b58 0, transparent 60%),
+    radial-gradient(ellipse at 90% 90%, #253047 0, transparent 60%);
+  box-sizing: border-box;
+  padding: 16px;
+  /* Override the login screen's fixed height so its card can grow on small screens. */
+  height: auto !important;
+  min-height: 100vh;
+  min-height: 100svh;
+  overflow: auto;
 }
 
 @keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(8px);
   }
-
   to {
     opacity: 1;
     transform: translateY(0);
   }
 }
 
-input:autofill {
-  background: transparent;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .animated-container .MuiButton-root:hover {
+    transform: none !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .MuiButton-root,
+  .MuiPaper-root,
+  .MuiChip-root {
+    border: 1px solid CanvasText;
+  }
+  .Mui-focusVisible {
+    outline: 2px solid Highlight !important;
+  }
 }
