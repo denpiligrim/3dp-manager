@@ -19,6 +19,23 @@ export class Subscription {
   @Column()
   name: string;
 
+  @Column({ nullable: true })
+  note?: string;
+
+  @Column({ nullable: true })
+  supportUrl?: string;
+
+  @Column({ nullable: true })
+  websiteUrl?: string;
+
+  @Column({ type: 'simple-json', nullable: true })
+  clientUsage?: {
+    upload: number;
+    download: number;
+    total: number;
+    expire: number;
+  };
+
   @Column({ unique: true })
   uuid: string;
 

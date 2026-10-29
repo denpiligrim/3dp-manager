@@ -28,6 +28,7 @@ import { AddNodesAndNodeRelations1765960000000 } from './migrations/176596000000
 import { AddNodeIpFlagAndInboundLabels1770000000000 } from './migrations/1770000000000-add-node-ip-flag-and-inbound-labels';
 import { AddNodeDomain1770000000001 } from './migrations/1770000000001-add-node-domain';
 import { AddSubscriptionClient1793200000000 } from './migrations/1793200000000-add-subscription-client';
+import { AddSubscriptionMetadata1793200000001 } from './migrations/1793200000001-add-subscription-metadata';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { AddSubscriptionClient1793200000000 } from './migrations/1793200000000-a
         AddNodeIpFlagAndInboundLabels1770000000000,
         AddNodeDomain1770000000001,
         AddSubscriptionClient1793200000000,
+        AddSubscriptionMetadata1793200000001,
       ],
       synchronize: process.env.DB_SYNCHRONIZE !== 'false',
       migrationsRun: process.env.DB_MIGRATIONS_RUN === 'true',

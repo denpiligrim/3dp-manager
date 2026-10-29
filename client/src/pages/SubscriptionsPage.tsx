@@ -22,6 +22,9 @@ import {
   Select,
   Snackbar,
   Stack,
+  Stepper,
+  Step,
+  StepLabel,
   Switch,
   Table,
   TableBody,
@@ -59,6 +62,9 @@ interface Subscription {
   name: string;
   uuid: string;
   clientId?: string;
+  note?: string;
+  supportUrl?: string;
+  websiteUrl?: string;
   inbounds: unknown[];
   inboundsConfig?: InboundConfigUI[];
   isAutoRotationEnabled?: boolean;
@@ -134,6 +140,12 @@ export default function SubscriptionsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [clientId, setClientId] = useState('');
+  const [wizardStep, setWizardStep] = useState(0);
+  const [note, setNote] = useState('');
+  const [supportUrl, setSupportUrl] = useState('');
+  const [websiteUrl, setWebsiteUrl] = useState('');
+  const [metadataErrors, setMetadataErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
   const [inbounds, setInbounds] = useState<InboundConfigUI[]>([]);
   const [portErrors, setPortErrors] = useState<Record<string, string>>({});
   const [linksOpen, setLinksOpen] = useState(false);
@@ -270,6 +282,11 @@ export default function SubscriptionsPage() {
     setEditingId(null);
     setName('');
     setClientId('');
+    setWizardStep(0);
+    setNote('');
+    setSupportUrl('');
+    setWebsiteUrl('');
+    setMetadataErrors({});
     setInbounds([
       createInbound('hysteria2-udp'),
       createInbound('vless-xhttp-reality'),
@@ -290,6 +307,11 @@ export default function SubscriptionsPage() {
     setEditingId(sub.id);
     setName(sub.name);
     setClientId(sub.clientId || '');
+    setWizardStep(0);
+    setNote(sub.note || '');
+    setSupportUrl(sub.supportUrl || '');
+    setWebsiteUrl(sub.websiteUrl || '');
+    setMetadataErrors({});
     setInbounds(
       (sub.inboundsConfig?.length ? sub.inboundsConfig : [createInbound()]).map((item) => {
         const nodeId = item.nodeId || getDefaultNodeId();
@@ -386,7 +408,39 @@ export default function SubscriptionsPage() {
     });
   };
 
+  const validateMetadata = () => {
+    const errors: Record<string, string> = {};
+    if (!name.trim()) errors.name = 'Введите имя подписки';
+    if (note.trim().length > 200) errors.note = 'Максимум 200 символов';
+    const validUrl = (value: string, protocols: string[]) => {
+      if (!value.trim()) return true;
+      try { const url = new URL(value.trim()); return protocols.includes(url.protocol) && !!url.hostname && !/[\r\n]/.test(value); } catch { return false; }
+    };
+    if (!validUrl(supportUrl, ['https:', 'http:', 'tg:'])) errors.supportUrl = 'Введите полную ссылку на поддержку';
+    if (!validUrl(websiteUrl, ['https:', 'http:'])) errors.websiteUrl = 'Введите полный адрес сайта (https://...)';
+    setMetadataErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleNext = () => {
+    if (wizardStep === 0 && !validateMetadata()) return;
+    if (wizardStep === 1) {
+      if (!inbounds.some((item) => !isRoutingProfile(item.type)) && !editingId) {
+        setSnackbar({ open: true, type: 'error', message: 'Добавьте хотя бы один инбаунд' });
+        return;
+      }
+      const errors: Record<string, string> = {};
+      for (const inbound of inbounds) {
+        if (inbound.type !== 'custom' && !isRoutingProfile(inbound.type) && !isValidPort(inbound.port)) errors[inbound.id] = 'Порт: число 1-65535 или random';
+      }
+      setPortErrors(errors);
+      if (Object.keys(errors).length) return;
+    }
+    setWizardStep((step) => Math.min(2, step + 1));
+  };
+
   const handleSave = async () => {
+    if (!validateMetadata()) { setWizardStep(0); return; }
     const nextPortErrors = inbounds.reduce<Record<string, string>>((acc, inbound) => {
       if (inbound.type !== 'custom' && !isRoutingProfile(inbound.type) && !isValidPort(inbound.port)) {
         acc[inbound.id] = 'Порт: число 1-65535 или random';
@@ -396,6 +450,7 @@ export default function SubscriptionsPage() {
     setPortErrors(nextPortErrors);
 
     if (Object.keys(nextPortErrors).length > 0) {
+      setWizardStep(1);
       setSnackbar({
         open: true,
         type: 'error',
@@ -411,6 +466,9 @@ export default function SubscriptionsPage() {
     const payload = {
       name,
       clientId: clientId.trim(),
+      ...(note.trim() ? { note: note.trim() } : editingId ? { note: '' } : {}),
+      ...(supportUrl.trim() ? { supportUrl: supportUrl.trim() } : editingId ? { supportUrl: '' } : {}),
+      ...(websiteUrl.trim() ? { websiteUrl: websiteUrl.trim() } : editingId ? { websiteUrl: '' } : {}),
       inboundsConfig: inbounds.map((inbound) => {
         if (inbound.type === 'custom') {
           return { type: inbound.type, link: inbound.link };
@@ -443,6 +501,7 @@ export default function SubscriptionsPage() {
       }),
     };
 
+    setSaving(true);
     try {
       if (editingId) {
         await api.put(`/subscriptions/${editingId}`, payload);
@@ -462,6 +521,8 @@ export default function SubscriptionsPage() {
         (error as { response?: { data?: { message?: string } } })?.response?.data?.message ||
         'Произошла ошибка при сохранении';
       setSnackbar({ open: true, type: 'error', message });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -766,14 +827,21 @@ export default function SubscriptionsPage() {
         {activeSub && <MenuItem onClick={() => handleDelete(activeSub.id)}><ListItemIcon><Delete fontSize="small" color="error" /></ListItemIcon><ListItemText sx={{ color: 'error.main' }}>Удалить</ListItemText></MenuItem>}
       </Menu>
 
-      <Dialog open={open} onClose={() => setOpen(false)} maxWidth="md" fullWidth disableRestoreFocus>
+      <Dialog open={open} onClose={() => { if (!saving) setOpen(false); }} maxWidth="md" fullWidth disableRestoreFocus>
         <DialogTitle variant="h5">{editingId ? 'Редактировать подписку' : 'Новая подписка'}</DialogTitle>
         <DialogContent dividers sx={{ maxHeight: '72vh' }}>
-          <TextField autoFocus margin="dense" label="Имя подписки" fullWidth value={name} onChange={(e) => setName(e.target.value)} sx={{ mb: 2 }} />
+          <Stepper activeStep={wizardStep} alternativeLabel sx={{ mb: 3 }}>{['Основные данные', 'Инбаунды', 'Роутинг'].map((label) => <Step key={label}><StepLabel>{label}</StepLabel></Step>)}</Stepper>
+          {wizardStep === 0 && <>
+          <TextField autoFocus margin="dense" label="Имя подписки" fullWidth value={name} onChange={(e) => setName(e.target.value)} error={!!metadataErrors.name} helperText={metadataErrors.name} sx={{ mb: 2 }} />
           <TextField margin="dense" label="ID клиента (необязательно)" fullWidth value={clientId} onChange={(e) => setClientId(e.target.value)} helperText="ID или email / имя клиента из раздела Clients 3x-ui. Клиент должен существовать на каждой выбранной ноде. Пустое поле — создать клиента автоматически перед генерацией подключений." sx={{ mb: 2 }} />
-          <Typography variant="h6" sx={{ mb: 2 }}>Инбаунды ({inbounds.length}/20)</Typography>
+          <TextField margin="dense" label="Примечание (необязательно)" multiline minRows={2} fullWidth value={note} onChange={(e) => setNote(e.target.value)} error={!!metadataErrors.note} helperText={metadataErrors.note || 'Отображается в приложении. До 200 символов.'} />
+          <TextField margin="dense" label="Ссылка на поддержку (необязательно)" fullWidth value={supportUrl} onChange={(e) => setSupportUrl(e.target.value)} error={!!metadataErrors.supportUrl} helperText={metadataErrors.supportUrl} placeholder="https://t.me/support" />
+          <TextField margin="dense" label="Сайт (необязательно)" fullWidth value={websiteUrl} onChange={(e) => setWebsiteUrl(e.target.value)} error={!!metadataErrors.websiteUrl} helperText={metadataErrors.websiteUrl} placeholder="https://example.com" />
+          </>}
+          {wizardStep > 0 && <>
+          <Typography variant="h6" sx={{ mb: 2 }}>{wizardStep === 1 ? 'Инбаунды' : 'Роутинг'} ({inbounds.filter((item) => isRoutingProfile(item.type) === (wizardStep === 2)).length}; всего {inbounds.length}/20)</Typography>
           <Box sx={{ maxHeight: '52vh', overflow: 'auto', pr: 1 }}>
-            {inbounds.map((inbound, index) => (
+            {inbounds.filter((item) => isRoutingProfile(item.type) === (wizardStep === 2)).map((inbound, index) => (
               <Box
                 key={inbound.id}
                 sx={{
@@ -794,7 +862,7 @@ export default function SubscriptionsPage() {
                 <FormControl size="small" sx={{ width: 185, flexShrink: 0 }}>
                   <InputLabel>Тип</InputLabel>
                   <Select value={inbound.type} label="Тип" onChange={(e) => handleInboundChange(inbound.id, 'type', e.target.value)}>
-                    {CONNECTION_OPTIONS.map((option) => <MenuItem key={option} value={option}>{option === 'happ-routing' ? 'Роутинг Happ' : option === 'incy-routing' ? 'Роутинг INCY' : option}</MenuItem>)}
+                    {CONNECTION_OPTIONS.filter((option) => isRoutingProfile(option) === (wizardStep === 2)).map((option) => <MenuItem key={option} value={option}>{option === 'happ-routing' ? 'Роутинг Happ' : option === 'incy-routing' ? 'Роутинг INCY' : option}</MenuItem>)}
                   </Select>
                 </FormControl>
                 {inbound.type === 'custom' ? (
@@ -889,14 +957,16 @@ export default function SubscriptionsPage() {
               </Box>
             ))}
           </Box>
-          <Button variant="outlined" size="small" startIcon={<Add />} onClick={() => addInbound()} disabled={inbounds.length >= 20}>Добавить инбаунд</Button>
-          <Button variant="outlined" size="small" startIcon={<Add />} sx={{ ml: 0.5 }} onClick={() => addInbound('happ-routing')} disabled={inbounds.length >= 20}>Добавить роутинг Happ</Button>
-          <Button variant="outlined" size="small" startIcon={<Add />} sx={{ ml: 0.5 }} onClick={() => addInbound('incy-routing')} disabled={inbounds.length >= 20}>Добавить роутинг INCY</Button>
-          <Button variant="outlined" color="error" size="small" startIcon={<Remove />} sx={{ ml: 0.5 }} onClick={() => removeInbound()}>Удалить все</Button>
+          {wizardStep === 1 && <Button variant="outlined" size="small" startIcon={<Add />} onClick={() => addInbound()} disabled={inbounds.length >= 20}>Добавить инбаунд</Button>}
+          {wizardStep === 2 && <><Typography variant="body2" sx={{ mb: 2 }}>Добавьте профили маршрутизации или пропустите этот шаг.</Typography><Button variant="outlined" size="small" startIcon={<Add />} sx={{ ml: 0.5 }} onClick={() => addInbound('happ-routing')} disabled={inbounds.length >= 20}>Добавить роутинг Happ</Button>
+          <Button variant="outlined" size="small" startIcon={<Add />} sx={{ ml: 0.5 }} onClick={() => addInbound('incy-routing')} disabled={inbounds.length >= 20}>Добавить роутинг INCY</Button></>}
+          <Button variant="outlined" color="error" size="small" startIcon={<Remove />} sx={{ ml: 0.5 }} onClick={() => { setInbounds((prev) => prev.filter((item) => isRoutingProfile(item.type) !== (wizardStep === 2))); setPortErrors({}); }}>Удалить все</Button>
+          </>}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpen(false)}>Отмена</Button>
-          <Button onClick={handleSave} variant="contained" color="primary">Сохранить</Button>
+          <Button disabled={saving} onClick={() => setOpen(false)}>Отмена</Button>
+          {wizardStep > 0 && <Button disabled={saving} onClick={() => setWizardStep((step) => step - 1)}>Назад</Button>}
+          {wizardStep < 2 ? <Button onClick={handleNext} variant="contained">Далее</Button> : <Button disabled={saving} onClick={handleSave} variant="contained" color="primary">{saving ? 'Сохранение…' : 'Сохранить'}</Button>}
         </DialogActions>
       </Dialog>
 

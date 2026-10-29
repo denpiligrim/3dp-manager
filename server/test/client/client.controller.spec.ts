@@ -13,6 +13,7 @@ import { Subscription } from 'src/subscriptions/entities/subscription.entity';
 import { Tunnel } from 'src/tunnels/entities/tunnel.entity';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import * as QRCode from 'qrcode';
+import { SubscriptionsService } from 'src/subscriptions/subscriptions.service';
 
 jest.mock('qrcode', () => ({
   toDataURL: jest.fn(),
@@ -47,6 +48,10 @@ describe('ClientController', () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ClientController],
       providers: [
+        {
+          provide: SubscriptionsService,
+          useValue: { syncClientUsage: jest.fn() },
+        },
         {
           provide: getRepositoryToken(Subscription),
           useValue: mockSubRepo,
@@ -105,6 +110,89 @@ describe('ClientController', () => {
       );
     },
   );
+
+  it.each([false, true])(
+    'emits INCY display and usage headers (relay=%s)',
+    async (relay) => {
+      const sub = {
+        name: 'Мой VPN',
+        note: 'Новости\n🎁 Скидка',
+        supportUrl: 'https://t.me/support',
+        websiteUrl: 'https://example.com',
+        clientId: 'shared',
+        uuid: 'uuid',
+        isEnabled: true,
+        inbounds: [],
+      };
+      mockSubRepo.findOne.mockResolvedValue(sub);
+      mockTunnelRepo.findOne.mockResolvedValue({ ip: '192.0.2.1' });
+      mockCacheManager.get.mockResolvedValue(undefined);
+      const moduleService = (controller as any).subscriptionsService;
+      moduleService.syncClientUsage.mockResolvedValue({
+        upload: 10,
+        download: 20,
+        total: 1000,
+        expire: 1800000000,
+      });
+      const res = { setHeader: jest.fn(), send: jest.fn() } as any;
+      const req = { headers: { 'user-agent': 'INCY' } } as any;
+      if (relay)
+        await controller.getRelaySubscription('uuid', '1', '', req, res);
+      else await controller.getSubscription('uuid', req, res);
+      expect(res.setHeader).toHaveBeenCalledWith(
+        'profile-title',
+        `base64:${Buffer.from(sub.name).toString('base64')}`,
+      );
+      expect(res.setHeader).toHaveBeenCalledWith(
+        'announce',
+        `base64:${Buffer.from(sub.note).toString('base64')}`,
+      );
+      expect(res.setHeader).toHaveBeenCalledWith('support-url', sub.supportUrl);
+      expect(res.setHeader).toHaveBeenCalledWith(
+        'profile-web-page-url',
+        sub.websiteUrl,
+      );
+      expect(res.setHeader).toHaveBeenCalledWith(
+        'subscription-userinfo',
+        'upload=10; download=20; total=1000; expire=1800000000',
+      );
+    },
+  );
+
+  it('keeps the traffic cache valid after saving a fresh snapshot', async () => {
+    const sub = { id: 'id', uuid: 'uuid', isEnabled: true, clientId: 'shared', updatedAt: new Date(1) };
+    mockSubRepo.findOne.mockResolvedValue(sub);
+    const cache = new Map<string, unknown>();
+    mockCacheManager.get.mockImplementation(async (key: string) => cache.get(key));
+    mockCacheManager.set.mockImplementation(async (key: string, value: unknown) => { cache.set(key, value); });
+    const service = (controller as any).subscriptionsService;
+    service.syncClientUsage.mockResolvedValue({ upload: 0, download: 1, total: 0, expire: 0 });
+    const res = { setHeader: jest.fn(), send: jest.fn() } as any;
+    await controller.getSubscription('uuid', { headers: {} } as any, res);
+    sub.updatedAt = new Date(2);
+    await controller.getSubscription('uuid', { headers: {} } as any, res);
+    expect(service.syncClientUsage).toHaveBeenCalledTimes(1);
+    mockCacheManager.get.mockReset();
+    mockCacheManager.set.mockReset();
+  });
+
+  it('uses the saved traffic snapshot when a panel is unavailable', async () => {
+    mockSubRepo.findOne.mockResolvedValue({
+      isEnabled: true,
+      clientId: 'shared',
+      clientUsage: { upload: 1, download: 2, total: 0, expire: 0 },
+    });
+    mockCacheManager.get.mockResolvedValue(undefined);
+    (controller as any).subscriptionsService.syncClientUsage.mockRejectedValue(
+      new Error('Offline'),
+    );
+    const res = { setHeader: jest.fn(), send: jest.fn() } as any;
+    await controller.getSubscription('uuid', { headers: {} } as any, res);
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'subscription-userinfo',
+      'upload=1; download=2; total=0; expire=0',
+    );
+  });
 
   describe('getSubscription', () => {
     const mockSubscription = {

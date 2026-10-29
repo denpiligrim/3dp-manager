@@ -60,6 +60,22 @@ const renderSubscriptionsPage = () => {
   )
 }
 
+const goToInbounds = async () => {
+  const name = screen.queryByLabelText('Имя подписки') as HTMLInputElement | null
+  if (name) {
+    if (!name.value) fireEvent.change(name, { target: { value: 'Test Subscription' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
+    await screen.findByText('Добавить инбаунд')
+  }
+}
+
+const goToRouting = async () => {
+  await goToInbounds()
+  const next = screen.queryByRole('button', { name: 'Далее' })
+  if (next) fireEvent.click(next)
+  await screen.findByText('Добавить роутинг INCY')
+}
+
 describe('SubscriptionsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -196,6 +212,40 @@ describe('SubscriptionsPage', () => {
   })
 
   describe('Диалог создания подписки', () => {
+    it('проводит через три шага и сохраняет основные данные при возврате', async () => {
+      setupMockGet()
+      mockPost.mockResolvedValue({ data: {} })
+      renderSubscriptionsPage()
+      fireEvent.click(await screen.findByText('Создать'))
+      fireEvent.change(await screen.findByLabelText('Имя подписки'), { target: { value: 'Мой VPN' } })
+      fireEvent.change(screen.getByLabelText('Примечание (необязательно)'), { target: { value: 'Новости сервиса' } })
+      fireEvent.change(screen.getByLabelText('Ссылка на поддержку (необязательно)'), { target: { value: 'https://t.me/support' } })
+      fireEvent.change(screen.getByLabelText('Сайт (необязательно)'), { target: { value: 'https://example.com' } })
+      expect(screen.queryByText('Добавить инбаунд')).not.toBeInTheDocument()
+      expect(screen.queryByText('Сохранить')).not.toBeInTheDocument()
+      await goToInbounds()
+      expect(screen.queryByText('Добавить роутинг INCY')).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Назад' }))
+      expect(await screen.findByLabelText('Примечание (необязательно)')).toHaveValue('Новости сервиса')
+      expect(screen.getByLabelText('Имя подписки')).toHaveValue('Мой VPN')
+      await goToRouting()
+      expect(screen.queryByText('Добавить инбаунд')).not.toBeInTheDocument()
+      expect(mockPost).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
+      await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/subscriptions', expect.objectContaining({ name: 'Мой VPN', note: 'Новости сервиса', supportUrl: 'https://t.me/support', websiteUrl: 'https://example.com' })))
+    })
+
+    it('не пропускает некорректный адрес сайта на следующий шаг', async () => {
+      setupMockGet()
+      renderSubscriptionsPage()
+      fireEvent.click(await screen.findByText('Создать'))
+      fireEvent.change(await screen.findByLabelText('Имя подписки'), { target: { value: 'VPN' } })
+      fireEvent.change(screen.getByLabelText('Сайт (необязательно)'), { target: { value: 'javascript:alert(1)' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
+      expect(screen.getByText('Введите полный адрес сайта (https://...)')).toBeInTheDocument()
+      expect(mockPost).not.toHaveBeenCalled()
+    })
+
     it('добавляет роутинг INCY отдельной кнопкой и отправляет профиль при сохранении', async () => {
       setupMockGet({ subscriptions: [{
         id: '1', name: 'INCY subscription', uuid: 'abc', inbounds: [],
@@ -205,6 +255,7 @@ describe('SubscriptionsPage', () => {
       renderSubscriptionsPage()
       fireEvent.click(await screen.findByTestId('icon-MoreVert'))
       fireEvent.click(await screen.findByText('Редактировать'))
+      await goToRouting()
       fireEvent.click(screen.getByText('Добавить роутинг INCY'))
       const profile = 'https://example.com/profile.json'
       fireEvent.change(await screen.findByLabelText('Профиль INCY (JSON, base64, URL или ссылка)'), { target: { value: profile } })
@@ -260,8 +311,9 @@ describe('SubscriptionsPage', () => {
       const createButton = await screen.findByText('Создать')
       fireEvent.click(createButton)
 
+      await goToInbounds()
       await waitFor(() => {
-        expect(screen.getByText('Инбаунды (10/20)')).toBeInTheDocument()
+        expect(screen.getByText('Инбаунды (10; всего 10/20)')).toBeInTheDocument()
       })
     })
 
@@ -287,7 +339,7 @@ describe('SubscriptionsPage', () => {
       const createButton = await screen.findByText('Создать')
       fireEvent.click(createButton)
 
-      const saveButton = await screen.findByText('Сохранить')
+      const saveButton = screen.getByRole('button', { name: 'Далее' })
       fireEvent.click(saveButton)
 
       await waitFor(() => {
@@ -304,8 +356,9 @@ describe('SubscriptionsPage', () => {
       const createButton = await screen.findByText('Создать')
       fireEvent.click(createButton)
 
+      await goToInbounds()
       await waitFor(() => {
-        expect(screen.getByText('Инбаунды (10/20)')).toBeInTheDocument()
+        expect(screen.getByText('Инбаунды (10; всего 10/20)')).toBeInTheDocument()
       })
     })
 
@@ -329,11 +382,12 @@ describe('SubscriptionsPage', () => {
       const createButton = await screen.findByText('Создать')
       fireEvent.click(createButton)
 
+      await goToInbounds()
       const addButton = await screen.findByText('Добавить инбаунд')
       fireEvent.click(addButton)
 
       await waitFor(() => {
-        expect(screen.getByText('Инбаунды (11/20)')).toBeInTheDocument()
+        expect(screen.getByText('Инбаунды (11; всего 11/20)')).toBeInTheDocument()
       })
     })
 
@@ -344,11 +398,12 @@ describe('SubscriptionsPage', () => {
       const createButton = await screen.findByText('Создать')
       fireEvent.click(createButton)
 
+      await goToInbounds()
       const removeAllButton = await screen.findByText('Удалить все')
       fireEvent.click(removeAllButton)
 
       await waitFor(() => {
-        expect(screen.getByText('Инбаунды (1/20)')).toBeInTheDocument()
+        expect(screen.getByText('Инбаунды (0; всего 0/20)')).toBeInTheDocument()
       })
     })
 
@@ -359,6 +414,7 @@ describe('SubscriptionsPage', () => {
       const createButton = await screen.findByText('Создать')
       fireEvent.click(createButton)
 
+      await goToInbounds()
       for (let i = 0; i < 11; i++) {
         const addButton = screen.getByText('Добавить инбаунд')
         fireEvent.click(addButton)
@@ -381,6 +437,7 @@ describe('SubscriptionsPage', () => {
       const field = screen.getByLabelText('ID клиента (необязательно)')
       expect(field).toHaveValue('')
       fireEvent.change(field, { target: { value: identifier } })
+      await goToRouting()
       fireEvent.click(screen.getByText('Сохранить'))
       await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/subscriptions', expect.objectContaining({ clientId: identifier.trim() })))
     })
@@ -397,6 +454,7 @@ describe('SubscriptionsPage', () => {
       const nameField = await screen.findByLabelText('Имя подписки')
       fireEvent.change(nameField, { target: { value: 'New Sub' } })
 
+      await goToRouting()
       const saveButton = screen.getByText('Сохранить')
       fireEvent.click(saveButton)
 
@@ -419,6 +477,7 @@ describe('SubscriptionsPage', () => {
       const nameField = await screen.findByLabelText('Имя подписки')
       fireEvent.change(nameField, { target: { value: 'New Sub' } })
 
+      await goToRouting()
       const saveButton = screen.getByText('Сохранить')
       fireEvent.click(saveButton)
 
@@ -439,6 +498,7 @@ describe('SubscriptionsPage', () => {
       const nameField = await screen.findByLabelText('Имя подписки')
       fireEvent.change(nameField, { target: { value: 'New Sub' } })
 
+      await goToRouting()
       const saveButton = screen.getByText('Сохранить')
       fireEvent.click(saveButton)
 
@@ -459,10 +519,12 @@ describe('SubscriptionsPage', () => {
       renderSubscriptionsPage()
       fireEvent.click(await screen.findByTestId('icon-MoreVert'))
       fireEvent.click(await screen.findByText('Редактировать'))
+      await goToRouting()
       expect(await screen.findByLabelText(scheme === 'incy' ? 'Профиль INCY (JSON, base64, URL или ссылка)' : 'Профиль Happ (JSON, base64 или ссылка)')).toHaveValue(profile)
+      await goToRouting()
       fireEvent.click(screen.getByText('Сохранить'))
       await waitFor(() => expect(mockPut).toHaveBeenCalledWith('/subscriptions/1', {
-        name: 'Happ', clientId: '', inboundsConfig: [{ type: `${scheme}-routing`, routingProfile: profile }],
+        name: 'Happ', clientId: '', note: '', supportUrl: '', websiteUrl: '', inboundsConfig: [{ type: `${scheme}-routing`, routingProfile: profile }],
       }))
     })
 
@@ -519,6 +581,7 @@ describe('SubscriptionsPage', () => {
       const nameField = await screen.findByLabelText('Имя подписки')
       fireEvent.change(nameField, { target: { value: 'Updated Sub' } })
 
+      await goToRouting()
       const saveButton = screen.getByText('Сохранить')
       fireEvent.click(saveButton)
 
@@ -547,6 +610,7 @@ describe('SubscriptionsPage', () => {
       const nameField = await screen.findByLabelText('Имя подписки')
       fireEvent.change(nameField, { target: { value: 'Updated Sub' } })
 
+      await goToRouting()
       const saveButton = screen.getByText('Сохранить')
       fireEvent.click(saveButton)
 

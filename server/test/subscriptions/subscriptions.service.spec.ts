@@ -17,6 +17,7 @@ describe('SubscriptionsService', () => {
   let xuiService: XuiService;
 
   const mockSubRepo = {
+    update: jest.fn(),
     find: jest.fn(),
     findOne: jest.fn(),
     create: jest.fn(),
@@ -40,6 +41,8 @@ describe('SubscriptionsService', () => {
 
   const mockXuiService = {
     deleteInbound: jest.fn(),
+    prepareSubscriptionClient: jest.fn(),
+    getSubscriptionUsage: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -164,6 +167,9 @@ describe('SubscriptionsService', () => {
 
       expect(subRepo.create).toHaveBeenCalledWith({
         name: 'Test Subscription',
+        note: undefined,
+        supportUrl: undefined,
+        websiteUrl: undefined,
         uuid: expect.any(String),
         clientId: expect.stringMatching(/^3dp-/),
         clientAutoCreate: true,
@@ -350,6 +356,70 @@ describe('SubscriptionsService', () => {
     await service.update('test', { clientId: '3dp-generated' });
     expect(mockSubRepo.save).toHaveBeenCalledWith(
       expect.objectContaining({ clientAutoCreate: true }),
+    );
+  });
+
+  it('fetches client information before saving and blocks creation if it is unavailable', async () => {
+    mockSubRepo.create.mockReturnValueOnce({
+      clientId: 'existing',
+      inboundsConfig: [{ type: 'vless-ws' }],
+    });
+    mockXuiService.prepareSubscriptionClient.mockRejectedValueOnce(
+      new Error('Panel unavailable'),
+    );
+    await expect(
+      service.create({ name: 'VPN', clientId: 'existing' }),
+    ).rejects.toThrow('Не удалось получить данные клиента');
+    expect(mockSubRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('aggregates traffic once per node and uses the earliest finite expiration', async () => {
+    const a = { id: 'a', url: 'https://a' };
+    const b = { id: 'b', url: 'https://b' };
+    jest
+      .spyOn(service as any, 'resolveNode')
+      .mockImplementation(async (id) => (id === 'a' ? a : b));
+    mockXuiService.prepareSubscriptionClient.mockResolvedValue({
+      email: 'shared',
+    });
+    mockXuiService.getSubscriptionUsage
+      .mockResolvedValueOnce({
+        upload: 10,
+        download: 20,
+        total: 100,
+        expire: 2000,
+      })
+      .mockResolvedValueOnce({
+        upload: 30,
+        download: 40,
+        total: 200,
+        expire: 1000,
+      });
+    const sub = {
+      clientId: 'shared',
+      clientAutoCreate: true,
+      inboundsConfig: [
+        { type: 'vless-ws', nodeId: 'a' },
+        { type: 'vmess-tcp', nodeId: 'a' },
+        { type: 'vless-ws', nodeId: 'b' },
+      ],
+    } as Subscription;
+    expect(await service.syncClientUsage(sub, true)).toEqual({
+      upload: 40,
+      download: 60,
+      total: 300,
+      expire: 1000,
+    });
+    expect(mockXuiService.prepareSubscriptionClient).toHaveBeenCalledTimes(2);
+    expect(mockXuiService.prepareSubscriptionClient).toHaveBeenCalledWith(
+      'shared',
+      true,
+      a,
+    );
+    expect(mockXuiService.prepareSubscriptionClient).toHaveBeenCalledWith(
+      'shared',
+      true,
+      b,
     );
   });
 

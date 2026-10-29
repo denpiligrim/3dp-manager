@@ -414,6 +414,34 @@ export class XuiService {
     return { ...client, id: client.uuid };
   }
 
+  async getSubscriptionUsage(email: string, node?: Node) {
+    const api = await this.createAuthenticatedApi(node);
+    if (!api) throw new Error('Не удалось авторизоваться в 3x-ui');
+    const details = await api.get<
+      XuiResponse<{
+        client: { totalGB?: number; expiryTime?: number };
+        usedTraffic?: number;
+      }>
+    >(`/panel/api/clients/get/${encodeURIComponent(email)}`);
+    if (!details.data?.success || !details.data.obj?.client)
+      throw new Error('Не удалось получить данные клиента');
+    const traffic = await api.get<XuiResponse<{ up?: number; down?: number }>>(
+      `/panel/api/clients/traffic/${encodeURIComponent(email)}`,
+    );
+    const client = details.data.obj.client;
+    const count = (value?: number) =>
+      Number.isFinite(value) ? Math.max(0, Math.floor(value!)) : 0;
+    return {
+      upload: traffic.data?.success ? count(traffic.data.obj?.up) : 0,
+      download: traffic.data?.success
+        ? count(traffic.data.obj?.down)
+        : count(details.data.obj.usedTraffic),
+      total: count(client.totalGB),
+      expire:
+        client.expiryTime! > 0 ? Math.floor(client.expiryTime! / 1000) : 0,
+    };
+  }
+
   async addInboundForClient(
     config: XuiInboundRaw,
     client: XuiInboundClient,

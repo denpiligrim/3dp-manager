@@ -100,9 +100,50 @@ describe('XuiService', () => {
       ]);
       expect(result.id).toBe('real-uuid');
       expect(result.password).toBe('real-password');
+      expect(JSON.parse(payload.data)[0].client).toMatchObject({
+        totalGB: 0,
+        expiryTime: 0,
+        limitIp: 0,
+      });
       expect(mockAxiosInstance.post.mock.invocationCallOrder[0]).toBeLessThan(
         mockAxiosInstance.get.mock.invocationCallOrder[0],
       );
+    });
+
+    it('reads traffic bytes and converts expiration milliseconds to seconds', async () => {
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({
+          data: {
+            success: true,
+            obj: { client: { totalGB: 1000, expiryTime: 1800000000000 } },
+          },
+        })
+        .mockResolvedValueOnce({
+          data: { success: true, obj: { up: 12, down: 34 } },
+        });
+      expect(await service.getSubscriptionUsage('shared')).toEqual({
+        upload: 12,
+        download: 34,
+        total: 1000,
+        expire: 1800000000,
+      });
+    });
+
+    it('uses the client aggregate for a newly created client without a traffic row', async () => {
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({
+          data: {
+            success: true,
+            obj: { client: { totalGB: 0, expiryTime: 0 }, usedTraffic: 0 },
+          },
+        })
+        .mockResolvedValueOnce({ data: { success: false } });
+      expect(await service.getSubscriptionUsage('shared')).toEqual({
+        upload: 0,
+        download: 0,
+        total: 0,
+        expire: 0,
+      });
     });
 
     it('uses an existing client without overwriting it', async () => {
