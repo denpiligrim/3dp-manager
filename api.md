@@ -90,6 +90,38 @@
 
 ## Подписки
 
+### Маршрутизация Happ и INCY
+
+В `inboundsConfig` можно добавить профиль без `port` и `nodeId`:
+
+```json
+{
+  "type": "incy-routing",
+  "routingProfile": "{\"Name\":\"MyProfile\",\"DirectSites\":[\"geosite:ru\"]}"
+}
+```
+
+Для Happ используйте `type: "happ-routing"`. Принимаются JSON-объект, base64
+или готовая ссылка соответствующего клиента: `happ://routing/...` либо
+`incy://routing/...` (`add`, `onadd`, `off`). JSON/base64 превращаются в ссылку
+`routing/add`; назначение готовых команд сохраняется.
+
+Для INCY также можно указать HTTP(S)-URL профиля: он передаётся как
+`incy://autorouting/add/<URL>` для автоматического обновления на стороне клиента.
+Готовые ссылки `incy://autorouting/add/<URL>` и `incy://autorouting/onadd/<URL>`
+сохраняют режим. `incy://routing/onadd/<URL>` означает одноразовый импорт.
+Сервер приложения не загружает эти URL.
+
+Профили передаются в base64-теле обычной и relay-подписки вместе со ссылками
+подключений. Применяются без ротации и не создают инбаундов на панели 3x-ui.
+Некорректный профиль отклоняется при сохранении с HTTP 400.
+
+В интерфейсе: «Создать» или «Редактировать» подписку → «Добавить роутинг INCY»
+(либо Happ) → вставить профиль → «Сохранить».
+
+Форматы INCY: [Routing](https://docs.incy.cc/routing/) и
+[Autorouting](https://docs.incy.cc/autorouting/).
+
 ### GET `/api/subscriptions`
 
 Получить все подписки.

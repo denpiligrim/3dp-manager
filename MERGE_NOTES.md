@@ -1,5 +1,9 @@
 # Подготовка `test` к слиянию в `main`
 
+Дополнение: интеграция веток `test-fix`, `fix-tagid`, `fix-deletion` и
+`fix-compatibility` описана в [INTEGRATION_REVIEW.md](INTEGRATION_REVIEW.md).
+Приведённые ниже результаты относятся к предыдущей проверке Happ.
+
 ## Изменения
 
 Поддержка Happ из [PR #53](https://github.com/denpiligrim/3dp-manager/pull/53)

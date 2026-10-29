@@ -59,7 +59,7 @@ describe('Layout', () => {
     renderLayout()
     expect(screen.getByText('Подписки')).toBeInTheDocument()
     expect(screen.getByText('Домены')).toBeInTheDocument()
-    expect(screen.getByText('Перенаправление')).toBeInTheDocument()
+    expect(screen.getByText('Relay серверы')).toBeInTheDocument()
     expect(screen.getByText('Настройки')).toBeInTheDocument()
   })
 
@@ -77,7 +77,7 @@ describe('Layout', () => {
 
   it('должен выделять активный пункт меню для страницы туннелей', () => {
     renderLayout('/tunnels')
-    const tunnelsItem = screen.getByText('Перенаправление').closest('.Mui-selected')
+    const tunnelsItem = screen.getByText('Relay серверы').closest('.Mui-selected')
     expect(tunnelsItem).toBeInTheDocument()
   })
 
@@ -101,9 +101,9 @@ describe('Layout', () => {
     expect(screen.getByText('DomainsPage')).toBeInTheDocument()
   })
 
-  it('должен переходить на страницу туннелей при клике на "Перенаправление"', () => {
+  it('должен переходить на страницу туннелей при клике на "Relay серверы"', () => {
     renderLayout('/')
-    const tunnelsLink = screen.getByText('Перенаправление')
+    const tunnelsLink = screen.getByText('Relay серверы')
     fireEvent.click(tunnelsLink)
     expect(screen.getByText('TunnelsPage')).toBeInTheDocument()
   })

@@ -5,6 +5,7 @@ import { XuiService } from 'src/xui/xui.service';
 import { Setting } from 'src/settings/entities/setting.entity';
 import { SessionService } from 'src/session/session.service';
 import axios from 'axios';
+import { Node, NodeAuthType } from 'src/nodes/entities/node.entity';
 
 jest.mock('axios');
 
@@ -21,12 +22,13 @@ describe('XuiService', () => {
   const mockSessionService = {
     getCookie: jest.fn(),
     setFromHeaders: jest.fn(),
+    clear: jest.fn(),
   };
 
   const mockAxiosInstance = {
     get: jest.fn(),
     post: jest.fn(),
-    defaults: { baseURL: '' },
+    defaults: { baseURL: '', headers: { common: {} } },
     interceptors: {
       request: { use: jest.fn() },
       response: { use: jest.fn() },
@@ -34,6 +36,7 @@ describe('XuiService', () => {
   };
 
   beforeEach(async () => {
+    mockAxiosInstance.defaults.headers.common = {};
     (axios.create as jest.Mock).mockReturnValue(mockAxiosInstance);
 
     const module: TestingModule = await Test.createTestingModule({
@@ -59,7 +62,144 @@ describe('XuiService', () => {
     jest.resetAllMocks();
   });
 
+  describe('CSRF compatibility', () => {
+    const node = {
+      url: 'https://panel.example/base',
+      authType: NodeAuthType.Password,
+      login: 'user',
+      password: 'pass',
+    } as Node;
+
+    it('sends the pre-login token and refreshes the session token for mutations', async () => {
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({
+          status: 200,
+          data: { obj: 'pre-token' },
+          headers: {
+            'set-cookie': ['sid=before; Path=/', 'other=keep; HttpOnly'],
+          },
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          data: { obj: 'post-token' },
+          headers: {},
+        });
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({
+          data: { success: true },
+          headers: { 'set-cookie': ['sid=after; Path=/'] },
+        })
+        .mockResolvedValueOnce({ data: { success: true, obj: { id: 42 } } });
+      expect(await service.addInbound({ port: 443 }, node)).toBe(42);
+      expect(mockAxiosInstance.post).toHaveBeenCalledWith(
+        '/login',
+        { username: 'user', password: 'pass' },
+        {
+          headers: {
+            Cookie: 'sid=before; other=keep',
+            'X-CSRF-Token': 'pre-token',
+          },
+        },
+      );
+      expect(mockAxiosInstance.defaults.headers.common).toEqual({
+        Cookie: 'sid=after; other=keep',
+        'X-CSRF-Token': 'post-token',
+      });
+    });
+
+    it('accepts old panels without a CSRF endpoint', async () => {
+      mockAxiosInstance.get.mockResolvedValue({
+        status: 404,
+        data: {},
+        headers: {},
+      });
+      mockAxiosInstance.post
+        .mockResolvedValueOnce({
+          data: { success: true },
+          headers: { 'set-cookie': ['sid=old; Path=/'] },
+        })
+        .mockResolvedValueOnce({ data: { success: true, obj: { id: 42 } } });
+      expect(await service.addInbound({ port: 443 }, node)).toBe(42);
+      expect(mockAxiosInstance.defaults.headers.common).toEqual({
+        Cookie: 'sid=old',
+      });
+    });
+
+    it('does not reuse a token from the pre-login session if refresh fails', async () => {
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({
+          status: 200,
+          data: { obj: 'pre-token' },
+          headers: {},
+        })
+        .mockRejectedValueOnce(new Error('Unavailable'));
+      mockAxiosInstance.post.mockResolvedValueOnce({
+        data: { success: true },
+        headers: { 'set-cookie': ['sid=new'] },
+      });
+      expect(await service.addInbound({ port: 443 }, node)).toBeNull();
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+    });
+
+    it('uses API tokens without password login or CSRF negotiation', async () => {
+      mockAxiosInstance.post.mockResolvedValue({
+        data: { success: true, obj: { id: 42 } },
+      });
+      expect(
+        await service.addInbound({ port: 443 }, {
+          ...node,
+          authType: NodeAuthType.Token,
+          token: 'api-token',
+        } as Node),
+      ).toBe(42);
+      expect(mockAxiosInstance.get).not.toHaveBeenCalled();
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      expect(mockAxiosInstance.defaults.headers.common).toEqual({
+        Authorization: 'Bearer api-token',
+      });
+    });
+  });
+
   describe('login', () => {
+    it('shares concurrent login attempts and refreshes the default-session CSRF token', async () => {
+      mockSettingsRepo.find.mockResolvedValue([
+        { key: 'xui_url', value: 'https://default.example' },
+        { key: 'xui_login', value: 'user' },
+        { key: 'xui_password', value: 'pass' },
+      ]);
+      mockAxiosInstance.get
+        .mockResolvedValueOnce({
+          status: 200,
+          data: { obj: 'before' },
+          headers: { 'set-cookie': ['sid=pre'] },
+        })
+        .mockResolvedValueOnce({
+          status: 200,
+          data: { obj: 'after' },
+          headers: {},
+        });
+      mockAxiosInstance.post.mockResolvedValue({
+        data: { success: true },
+        headers: { 'set-cookie': ['sid=post'] },
+      });
+      expect(await Promise.all([service.login(), service.login()])).toEqual([
+        true,
+        true,
+      ]);
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      mockSessionService.getCookie.mockReturnValue('sid=post');
+      const [interceptor] = mockAxiosInstance.interceptors.request.use.mock
+        .calls[0] as [
+        (config: { headers: Record<string, string> }) => {
+          headers: Record<string, string>;
+        },
+      ];
+      expect(interceptor({ headers: {} }).headers).toEqual({
+        Cookie: 'sid=post',
+        'X-CSRF-Token': 'after',
+      });
+    });
+
     it('должен вернуть false, если настройки не заполнены', async () => {
       mockSettingsRepo.find.mockResolvedValue([]);
 
@@ -76,6 +216,7 @@ describe('XuiService', () => {
       ]);
 
       mockAxiosInstance.post.mockResolvedValue({
+        data: { success: true },
         headers: {
           'set-cookie': ['session=abc123'],
         },
@@ -156,6 +297,7 @@ describe('XuiService', () => {
       ]);
       mockAxiosInstance.post
         .mockResolvedValueOnce({
+          data: { success: true },
           headers: { 'set-cookie': ['session=abc123'] },
         })
         .mockResolvedValueOnce({ data: { success: true } });
@@ -175,6 +317,7 @@ describe('XuiService', () => {
       ]);
       mockAxiosInstance.post
         .mockResolvedValueOnce({
+          data: { success: true },
           headers: { 'set-cookie': ['session=abc123'] },
         })
         .mockRejectedValueOnce(new Error('Not found'));
@@ -195,6 +338,7 @@ describe('XuiService', () => {
         { key: 'xui_password', value: 'password' },
       ]);
       mockAxiosInstance.post.mockResolvedValueOnce({
+        data: { success: true },
         headers: { 'set-cookie': ['session=abc123'] },
       });
       mockAxiosInstance.get.mockResolvedValue({

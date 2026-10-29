@@ -77,15 +77,20 @@ describe('SubscriptionsService', () => {
     jest.clearAllMocks();
   });
 
-  it('rejects an invalid Happ profile before saving a subscription', async () => {
-    await expect(
-      service.create({
-        name: 'Test',
-        inboundsConfig: [{ type: 'happ-routing', routingProfile: 'invalid' }],
-      }),
-    ).rejects.toThrow('Invalid Happ routing profile');
-    expect(subRepo.save).not.toHaveBeenCalled();
-  });
+  it.each(['happ', 'incy'])(
+    'rejects an invalid %s profile before saving a subscription',
+    async (scheme) => {
+      await expect(
+        service.create({
+          name: 'Test',
+          inboundsConfig: [
+            { type: `${scheme}-routing`, routingProfile: 'invalid' },
+          ],
+        }),
+      ).rejects.toThrow('routing profile');
+      expect(subRepo.save).not.toHaveBeenCalled();
+    },
+  );
 
   describe('findAll', () => {
     it('должен вернуть все подписки с relations и сортировкой', async () => {

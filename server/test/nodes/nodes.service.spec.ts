@@ -83,6 +83,32 @@ describe('NodesService', () => {
     expect(nodeRepo.save).toHaveBeenCalledWith(nextNode);
   });
 
+  it('can force-delete an unavailable node without calling its panel', async () => {
+    const node = { id: 'offline', isMain: false } as Node;
+    const nodeRepo = createNodeRepo(jest.fn().mockResolvedValue(node));
+    nodeRepo.count.mockResolvedValue(2);
+    const { service, inboundsRepo, xuiService } = createService(nodeRepo);
+    xuiService.deleteInbound.mockResolvedValue(false);
+    await service.remove('offline', true);
+    expect(xuiService.deleteInbound).not.toHaveBeenCalled();
+    expect(inboundsRepo.delete).toHaveBeenCalledWith({ nodeId: 'offline' });
+    expect(nodeRepo.remove).toHaveBeenCalledWith(node);
+  });
+
+  it('keeps the node when normal remote cleanup fails', async () => {
+    const node = { id: 'offline', isMain: false } as Node;
+    const nodeRepo = createNodeRepo(jest.fn().mockResolvedValue(node));
+    nodeRepo.count.mockResolvedValue(2);
+    const { service, inboundsRepo, xuiService } = createService(nodeRepo);
+    inboundsRepo.find.mockResolvedValue([{ id: 1, xuiId: 101 }]);
+    xuiService.deleteInbound.mockResolvedValue(false);
+    await expect(service.remove('offline')).rejects.toThrow(
+      'Failed to delete inbound',
+    );
+    expect(nodeRepo.remove).not.toHaveBeenCalled();
+    expect(inboundsRepo.delete).not.toHaveBeenCalled();
+  });
+
   it('uses node credentials when deleting node inbounds', async () => {
     const mainNode = { id: 'main', isMain: true } as Node;
     const getOne = jest
@@ -93,7 +119,9 @@ describe('NodesService', () => {
     nodeRepo.count.mockResolvedValue(1);
     nodeRepo.findOne.mockResolvedValue(null);
     const { service, inboundsRepo, xuiService } = createService(nodeRepo);
-    inboundsRepo.find.mockResolvedValue([{ id: 1, xuiId: 101, nodeId: 'main' }]);
+    inboundsRepo.find.mockResolvedValue([
+      { id: 1, xuiId: 101, nodeId: 'main' },
+    ]);
 
     await service.remove('main');
 

@@ -33,6 +33,85 @@ describe('InboundBuilderService', () => {
     jest.clearAllMocks();
   });
 
+  it.each([
+    [
+      'VLESS Reality TCP',
+      () =>
+        service.buildVlessRealityTcp({
+          port: 443,
+          uuid: 'test-uuid',
+          sni: 'example.com',
+          privateKey: 'private-key',
+          publicKey: 'public-key',
+        }),
+    ],
+    [
+      'VLESS Reality XHTTP',
+      () =>
+        service.buildVlessRealityXhttp({
+          port: 8443,
+          uuid: 'test-uuid',
+          sni: 'example.com',
+          privateKey: 'private-key',
+          publicKey: 'public-key',
+        }),
+    ],
+    [
+      'VLESS Reality gRPC',
+      () =>
+        service.buildVlessRealityGrpc({
+          port: 2053,
+          uuid: 'test-uuid',
+          sni: 'example.com',
+          privateKey: 'private-key',
+          publicKey: 'public-key',
+        }),
+    ],
+    [
+      'VLESS WebSocket',
+      () =>
+        service.buildVlessWs({
+          port: 10000,
+          uuid: 'test-uuid',
+          sni: 'example.com',
+        }),
+    ],
+    [
+      'VMess TCP',
+      () =>
+        service.buildVmessTcp({
+          port: 20000,
+          uuid: 'test-uuid',
+        }),
+    ],
+    [
+      'Shadowsocks TCP',
+      () =>
+        service.buildShadowsocksTcp({
+          port: 30000,
+          uuid: 'test-uuid',
+        }),
+    ],
+    [
+      'Trojan Reality TCP',
+      () =>
+        service.buildTrojanRealityTcp({
+          port: 443,
+          uuid: 'test-uuid',
+          sni: 'example.com',
+          privateKey: 'private-key',
+          publicKey: 'public-key',
+        }),
+    ],
+  ])(
+    'не должен передавать необязательный tgId для %s',
+    (_name, buildInbound) => {
+      const settings = JSON.parse(buildInbound().settings);
+
+      expect(settings.clients[0]).not.toHaveProperty('tgId');
+    },
+  );
+
   describe('buildVlessRealityTcp', () => {
     const params = {
       port: 443,
@@ -234,6 +313,56 @@ describe('InboundBuilderService', () => {
       const streamSettings = JSON.parse(result.streamSettings);
       expect(streamSettings.security).toBe('reality');
       expect(streamSettings.realitySettings.target).toBe('ya.ru:443');
+    });
+  });
+
+  // 3x-ui >= v3.6.0 объявил Client.TgID как int64. Строка (в т.ч. пустая)
+  // роняет разбор всего инбаунда: "cannot unmarshal string into ... int64".
+  describe('совместимость клиента с 3x-ui v3.6.0', () => {
+    const realityParams = {
+      port: 443,
+      uuid: 'test-uuid-tgid',
+      sni: 'ya.ru',
+      privateKey: 'private-key',
+      publicKey: 'public-key',
+    };
+
+    const builders: Array<[string, () => { settings: string }]> = [
+      [
+        'buildVlessRealityTcp',
+        () => service.buildVlessRealityTcp(realityParams),
+      ],
+      [
+        'buildVlessRealityXhttp',
+        () => service.buildVlessRealityXhttp(realityParams),
+      ],
+      [
+        'buildVlessRealityGrpc',
+        () => service.buildVlessRealityGrpc(realityParams),
+      ],
+      [
+        'buildVlessWs',
+        () => service.buildVlessWs({ port: 80, uuid: 'u', sni: 'ya.ru' }),
+      ],
+      ['buildVmessTcp', () => service.buildVmessTcp({ port: 8080, uuid: 'u' })],
+      [
+        'buildShadowsocksTcp',
+        () => service.buildShadowsocksTcp({ port: 8388, uuid: 'u' }),
+      ],
+      [
+        'buildTrojanRealityTcp',
+        () => service.buildTrojanRealityTcp(realityParams),
+      ],
+    ];
+
+    it.each(builders)('%s не отправляет строковый tgId', (_name, build) => {
+      const settings = JSON.parse(build().settings);
+
+      for (const client of settings.clients) {
+        expect(
+          client.tgId === undefined || typeof client.tgId === 'number',
+        ).toBe(true);
+      }
     });
   });
 
@@ -526,6 +655,9 @@ describe('InboundBuilderService', () => {
 
       expect(result).toContain('trojan://');
       expect(result).toContain('security=reality');
+      expect(result).toContain('@192.168.1.1:443');
+      expect(result).not.toContain('@ya.ru:');
+      expect(result).toContain('sni=ya.ru');
     });
 
     it('должен вернуть пустую строку для trojan без reality', () => {

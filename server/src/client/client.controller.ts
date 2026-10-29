@@ -22,6 +22,7 @@ import { Public } from '../auth/public.decorator';
 import { Tunnel } from 'src/tunnels/entities/tunnel.entity';
 import { generateSubscriptionHtmlWithQr } from './templates/subscription.template';
 import { buildHappRoutingLink } from '../subscriptions/happ-routing';
+import { buildIncyRoutingLink } from '../subscriptions/incy-routing';
 
 @Controller()
 export class ClientController {
@@ -171,12 +172,19 @@ export class ClientController {
 
   private getRoutingLinks(sub: Subscription): string[] {
     return (sub.inboundsConfig || [])
-      .filter((config) => config.type === 'happ-routing')
+      .filter(
+        (config) =>
+          config.type === 'happ-routing' || config.type === 'incy-routing',
+      )
       .flatMap((config) => {
         try {
-          return [buildHappRoutingLink(config.routingProfile)];
+          return [
+            config.type === 'incy-routing'
+              ? buildIncyRoutingLink(config.routingProfile)
+              : buildHappRoutingLink(config.routingProfile),
+          ];
         } catch {
-          this.logger.warn('Skipping invalid Happ routing profile');
+          this.logger.warn(`Skipping invalid ${config.type} profile`);
           return [];
         }
       });

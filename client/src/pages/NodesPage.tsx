@@ -34,7 +34,6 @@ import {
   Edit,
   Star,
   StarBorder,
-  Sync,
 } from '@mui/icons-material';
 import api from '../api';
 import { nodesApi } from '../features/nodes/api';
@@ -70,10 +69,10 @@ export default function NodesPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<NodeRecord | null>(null);
   const [form, setForm] = useState<NodePayload>(emptyForm);
-  const [checkingId, setCheckingId] = useState<string | null>(null);
   const [countries, setCountries] = useState<CountryOption[]>([]);
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<NodeRecord | null>(null);
+  const [forceDelete, setForceDelete] = useState(false);
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof NodePayload, string>>>({});
   const [message, setMessage] = useState({
     open: false,
@@ -227,36 +226,12 @@ export default function NodesPage() {
     });
   };
 
-  const checkNode = async (node: NodeRecord) => {
-    setCheckingId(node.id);
-    try {
-      const result = await nodesApi.check(node.id);
-      setMessage({
-        open: true,
-        type: result.success ? 'success' : 'error',
-        text: result.success ? 'Подключение успешно' : 'Не удалось подключиться',
-      });
-      loadNodes();
-    } finally {
-      setCheckingId(null);
-    }
-  };
-
-  const syncNodes = async () => {
-    const result = await nodesApi.syncFromMain();
-    setMessage({
-      open: true,
-      type: 'success',
-      text: `Синхронизировано нод: ${result.count}`,
-    });
-    loadNodes();
-  };
-
   const removeNode = async () => {
     if (!deleteTarget) return;
     try {
-      await nodesApi.remove(deleteTarget.id);
+      await nodesApi.remove(deleteTarget.id, forceDelete);
       setDeleteTarget(null);
+      setForceDelete(false);
       setMessage({ open: true, type: 'success', text: 'Нода удалена' });
       loadNodes();
     } catch (error) {
@@ -320,9 +295,6 @@ export default function NodesPage() {
                   {node.isMain && <Chip icon={<CheckCircle />} label="Основная" color="success" size="small" />}
                 </TableCell>
                 <TableCell align="right">
-                  {/* <IconButton disabled={checkingId === node.id} onClick={() => checkNode(node)}>
-                    {checkingId === node.id ? <CircularProgress size={20} /> : <CheckCircle />}
-                  </IconButton> */}
                   <IconButton onClick={() => openEdit(node)}>
                     <Edit />
                   </IconButton>
@@ -452,13 +424,19 @@ export default function NodesPage() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)}>
+      <Dialog open={!!deleteTarget} onClose={() => { setDeleteTarget(null); setForceDelete(false); }}>
         <DialogTitle>Удалить ноду?</DialogTitle>
         <DialogContent>
-          <Typography>Вы уверены, что хотите удалить ноду {deleteTarget?.name}?</Typography>
+          <Typography sx={{ mb: 2 }}>Вы уверены, что хотите удалить ноду {deleteTarget?.name}?</Typography>
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <Switch checked={forceDelete} onChange={(e) => setForceDelete(e.target.checked)} slotProps={{ input: { 'aria-label': 'Принудительное удаление ноды' } }} />
+            <Typography variant="body2">
+              Удалить принудительно (если сервер 3x-ui недоступен)
+            </Typography>
+          </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteTarget(null)}>Отмена</Button>
+          <Button onClick={() => { setDeleteTarget(null); setForceDelete(false); }}>Отмена</Button>
           <Button color="error" variant="contained" onClick={removeNode}>Удалить</Button>
         </DialogActions>
       </Dialog>

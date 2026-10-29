@@ -35,7 +35,6 @@ export class InboundBuilderService {
             limitIp: 0,
             totalGB: 0,
             expiryTime: 0,
-            tgId: '',
             subId: '',
             reset: 0,
           },
@@ -100,7 +99,6 @@ export class InboundBuilderService {
             limitIp: 0,
             totalGB: 0,
             expiryTime: 0,
-            tgId: '',
             subId: '',
             reset: 0,
           },
@@ -174,7 +172,6 @@ export class InboundBuilderService {
             limitIp: 0,
             totalGB: 0,
             expiryTime: 0,
-            tgId: '',
             subId: '',
             reset: 0,
           },
@@ -234,7 +231,6 @@ export class InboundBuilderService {
             limitIp: 0,
             totalGB: 0,
             expiryTime: 0,
-            tgId: '',
             subId: '',
             reset: 0,
           },
@@ -280,7 +276,6 @@ export class InboundBuilderService {
             limitIp: 0,
             totalGB: 0,
             expiryTime: 0,
-            tgId: '',
             subId: '0',
             alterId: '0',
             reset: 0,
@@ -322,7 +317,6 @@ export class InboundBuilderService {
             limitIp: 0,
             totalGB: 0,
             expiryTime: 0,
-            tgId: '',
             subId: '',
             reset: 0,
           },
@@ -373,7 +367,6 @@ export class InboundBuilderService {
             limitIp: 0,
             totalGB: 0,
             expiryTime: 0,
-            tgId: '',
             subId: '',
             reset: 0,
           },
@@ -432,8 +425,7 @@ export class InboundBuilderService {
     const { port, uuid, sni } = params;
     const certificateFile =
       params.certificateFile || `/root/cert/${sni}/fullchain.pem`;
-    const keyFile =
-      params.keyFile || `/root/cert/${sni}/privkey.pem`;
+    const keyFile = params.keyFile || `/root/cert/${sni}/privkey.pem`;
     const obfsPassword = crypto.randomBytes(8).toString('hex');
     return {
       enable: true,
@@ -507,7 +499,6 @@ export class InboundBuilderService {
       }),
     };
   }
-
 
   generateUuid() {
     return uuidv4();
@@ -674,7 +665,7 @@ export class InboundBuilderService {
     const spx = '%2F';
 
     return (
-      `trojan://${password}@${SNI}:${inbound.port}` +
+      `trojan://${password}@${sni}:${inbound.port}` +
       `?type=tcp` +
       `&security=reality` +
       `&pbk=${pbk}` +
@@ -694,12 +685,17 @@ export class InboundBuilderService {
   ) {
     const stream = JSON.parse(inbound.streamSettings) as {
       tlsSettings?: { serverName?: string };
-      finalmask?: { udp?: Array<{ type?: string; settings?: { password?: string } }> };
+      finalmask?: {
+        udp?: Array<{ type?: string; settings?: { password?: string } }>;
+      };
     };
     const settings = JSON.parse(inbound.settings) as {
       clients?: Array<{ auth?: string; password?: string }>;
     };
-    const auth = settings.clients?.[0]?.auth || settings.clients?.[0]?.password || password;
+    const auth =
+      settings.clients?.[0]?.auth ||
+      settings.clients?.[0]?.password ||
+      password;
     const finalmask = stream.finalmask?.udp?.[0];
     const params = new URLSearchParams();
     params.set('security', 'tls');

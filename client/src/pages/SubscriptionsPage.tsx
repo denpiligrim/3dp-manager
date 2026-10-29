@@ -22,6 +22,7 @@ import {
   Select,
   Snackbar,
   Stack,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -108,7 +109,10 @@ const CONNECTION_OPTIONS = [
   'trojan-tcp-reality',
   'custom',
   'happ-routing',
+  'incy-routing',
 ];
+
+const isRoutingProfile = (type: string) => type === 'happ-routing' || type === 'incy-routing';
 
 const generateId = () => Math.random().toString(36).substring(7);
 
@@ -134,6 +138,7 @@ export default function SubscriptionsPage() {
   const [currentLinks, setCurrentLinks] = useState<string[]>([]);
   const [createdSubscriptionId, setCreatedSubscriptionId] = useState<string | null>(null);
   const [rotationLoading, setRotationLoading] = useState(false);
+  const [forceRotation, setForceRotation] = useState(false);
   const [rotationSettings, setRotationSettings] = useState({
     rotation_interval: '30',
     rotation_status: 'active',
@@ -149,7 +154,7 @@ export default function SubscriptionsPage() {
     title: '',
     confirmText: 'Удалить',
     confirmColor: 'error' as 'error' | 'primary',
-    onConfirm: () => {},
+    onConfirm: (() => {}) as (force?: boolean) => void,
   });
 
   const theme = useTheme();
@@ -225,7 +230,7 @@ export default function SubscriptionsPage() {
     const nodeId = getDefaultNodeId();
 
     // Профиль маршрутизации не требует ноды и порта.
-    if (type === 'happ-routing') {
+    if (isRoutingProfile(type)) {
       return {
         id: generateId(),
         type,
@@ -339,7 +344,7 @@ export default function SubscriptionsPage() {
           next.keyFile = next.keyFile || defaults.keyFile;
         }
 
-        if (field === 'type' && value !== 'custom' && value !== 'happ-routing' && !next.nodeId) {
+        if (field === 'type' && value !== 'custom' && !isRoutingProfile(value) && !next.nodeId) {
           next.nodeId = getDefaultNodeId();
           next.flag = getNodeFlag(next.nodeId);
         }
@@ -358,8 +363,8 @@ export default function SubscriptionsPage() {
     }
   };
 
-  const addInbound = () => {
-    if (inbounds.length < 20) setInbounds((prev) => [...prev, createInbound()]);
+  const addInbound = (type = 'vless-tcp-reality') => {
+    setInbounds((prev) => prev.length < 20 ? [...prev, createInbound(type)] : prev);
   };
 
   const removeInbound = (id?: string) => {
@@ -379,7 +384,7 @@ export default function SubscriptionsPage() {
 
   const handleSave = async () => {
     const nextPortErrors = inbounds.reduce<Record<string, string>>((acc, inbound) => {
-      if (inbound.type !== 'custom' && inbound.type !== 'happ-routing' && !isValidPort(inbound.port)) {
+      if (inbound.type !== 'custom' && !isRoutingProfile(inbound.type) && !isValidPort(inbound.port)) {
         acc[inbound.id] = 'Порт: число 1-65535 или random';
       }
       return acc;
@@ -405,7 +410,7 @@ export default function SubscriptionsPage() {
         if (inbound.type === 'custom') {
           return { type: inbound.type, link: inbound.link };
         }
-        if (inbound.type === 'happ-routing') {
+        if (isRoutingProfile(inbound.type)) {
           return {
             type: inbound.type,
             routingProfile: inbound.routingProfile,
@@ -500,13 +505,17 @@ export default function SubscriptionsPage() {
       title: `Обновить подписку "${sub.name}" сейчас?`,
       confirmText: 'Обновить',
       confirmColor: 'primary',
-      onConfirm: async () => {
-        const res = await api.post(`/rotation/rotate-one/${sub.id}`);
+      onConfirm: async (force = false) => {
+        const url = force
+          ? `/rotation/rotate-one/${sub.id}?force=true`
+          : `/rotation/rotate-one/${sub.id}`;
+        const res = await api.post(url);
         setSnackbar({
           open: true,
           type: res.data?.success ? 'success' : 'error',
           message: res.data?.message || 'Ротация выполнена',
         });
+        setForceRotation(false);
         loadSubs();
       },
     });
@@ -548,15 +557,19 @@ export default function SubscriptionsPage() {
       title: 'Сгенерировать инбаунды сейчас для всех активных подписок?',
       confirmText: 'Сгенерировать',
       confirmColor: 'primary',
-      onConfirm: async () => {
+      onConfirm: async (force = false) => {
         try {
           setRotationLoading(true);
-          const { data } = await api.post('/rotation/rotate-all');
+          const url = force
+            ? '/rotation/rotate-all?force=true'
+            : '/rotation/rotate-all';
+          const { data } = await api.post(url);
           setSnackbar({
             open: true,
             type: data?.success ? 'success' : 'error',
             message: data?.message || 'Ротация завершена',
           });
+          setForceRotation(false);
           loadSubs();
         } finally {
           setRotationLoading(false);
@@ -599,13 +612,17 @@ export default function SubscriptionsPage() {
 
   const handleGenerateCreatedSubscription = async () => {
     if (!createdSubscriptionId) return;
-    const res = await api.post(`/rotation/rotate-one/${createdSubscriptionId}`);
+    const url = forceRotation
+      ? `/rotation/rotate-one/${createdSubscriptionId}?force=true`
+      : `/rotation/rotate-one/${createdSubscriptionId}`;
+    const res = await api.post(url);
     setSnackbar({
       open: true,
       type: res.data?.success ? 'success' : 'error',
       message: res.data?.message || 'Ротация выполнена',
     });
     setCreatedSubscriptionId(null);
+    setForceRotation(false);
     loadSubs();
   };
 
@@ -743,7 +760,7 @@ export default function SubscriptionsPage() {
                   p: 2,
                   flexWrap: 'nowrap',
                   width: 'fit-content',
-                  minWidth: inbound.type === 'custom' ? 780 : inbound.type === 'hysteria2-udp' ? 1540 : 1260,
+                  minWidth: inbound.type === 'custom' || isRoutingProfile(inbound.type) ? 780 : inbound.type === 'hysteria2-udp' ? 1540 : 1260,
                   border: 1,
                   borderColor: 'divider',
                   borderRadius: 1,
@@ -753,22 +770,22 @@ export default function SubscriptionsPage() {
                 <FormControl size="small" sx={{ width: 185, flexShrink: 0 }}>
                   <InputLabel>Тип</InputLabel>
                   <Select value={inbound.type} label="Тип" onChange={(e) => handleInboundChange(inbound.id, 'type', e.target.value)}>
-                    {CONNECTION_OPTIONS.map((option) => <MenuItem key={option} value={option}>{option}</MenuItem>)}
+                    {CONNECTION_OPTIONS.map((option) => <MenuItem key={option} value={option}>{option === 'happ-routing' ? 'Роутинг Happ' : option === 'incy-routing' ? 'Роутинг INCY' : option}</MenuItem>)}
                   </Select>
                 </FormControl>
                 {inbound.type === 'custom' ? (
                   <TextField size="small" label="Ссылка на подключение" placeholder="vless://..." value={inbound.link || ''} onChange={(e) => handleInboundChange(inbound.id, 'link', e.target.value)} sx={{ width: 460, flexShrink: 0 }} />
-                ) : inbound.type === 'happ-routing' ? (
+                ) : isRoutingProfile(inbound.type) ? (
                   <TextField
                     size="small"
-                    label="Профиль Happ (JSON, base64 или ссылка)"
+                    label={inbound.type === 'incy-routing' ? 'Профиль INCY (JSON, base64, URL или ссылка)' : 'Профиль Happ (JSON, base64 или ссылка)'}
                     placeholder='{"Name":"MyProfile","GlobalProxy":"true","DirectSites":["geosite:cn"]}'
                     value={inbound.routingProfile || ''}
                     onChange={(e) => handleInboundChange(inbound.id, 'routingProfile', e.target.value)}
                     multiline
                     rows={4}
                     sx={{ width: 460, flexShrink: 0 }}
-                    helperText="Вставьте JSON профиль или готовую ссылку happ://routing/..."
+                    helperText={inbound.type === 'incy-routing' ? 'JSON, base64, incy://routing/... или incy://autorouting/.... URL профиля включает автообновление.' : 'Вставьте JSON профиль или готовую ссылку happ://routing/...'}
                   />
                 ) : (
                   <>
@@ -848,7 +865,9 @@ export default function SubscriptionsPage() {
               </Box>
             ))}
           </Box>
-          <Button variant="outlined" size="small" startIcon={<Add />} onClick={addInbound} disabled={inbounds.length >= 20}>Добавить инбаунд</Button>
+          <Button variant="outlined" size="small" startIcon={<Add />} onClick={() => addInbound()} disabled={inbounds.length >= 20}>Добавить инбаунд</Button>
+          <Button variant="outlined" size="small" startIcon={<Add />} sx={{ ml: 0.5 }} onClick={() => addInbound('happ-routing')} disabled={inbounds.length >= 20}>Добавить роутинг Happ</Button>
+          <Button variant="outlined" size="small" startIcon={<Add />} sx={{ ml: 0.5 }} onClick={() => addInbound('incy-routing')} disabled={inbounds.length >= 20}>Добавить роутинг INCY</Button>
           <Button variant="outlined" color="error" size="small" startIcon={<Remove />} sx={{ ml: 0.5 }} onClick={() => removeInbound()}>Удалить все</Button>
         </DialogContent>
         <DialogActions>
@@ -868,12 +887,22 @@ export default function SubscriptionsPage() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={confirmDialog.open} onClose={() => setConfirmDialog({ ...confirmDialog, open: false })}>
+      <Dialog open={confirmDialog.open} onClose={() => { setConfirmDialog({ ...confirmDialog, open: false }); setForceRotation(false); }}>
         <DialogTitle>Подтверждение</DialogTitle>
-        <DialogContent><Typography>{confirmDialog.title}</Typography></DialogContent>
+        <DialogContent>
+          <Typography>{confirmDialog.title}</Typography>
+          {confirmDialog.confirmColor === 'primary' && (
+            <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 2 }}>
+              <Switch checked={forceRotation} onChange={(e) => setForceRotation(e.target.checked)} slotProps={{ input: { 'aria-label': 'Принудительная ротация' } }} />
+              <Typography variant="body2">
+                Принудительно (не удалять старые конфиги с 3x-ui)
+              </Typography>
+            </Stack>
+          )}
+        </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmDialog({ ...confirmDialog, open: false })}>Отмена</Button>
-          <Button onClick={() => { confirmDialog.onConfirm(); setConfirmDialog({ ...confirmDialog, open: false }); }} variant="contained" color={confirmDialog.confirmColor}>
+          <Button onClick={() => { setConfirmDialog({ ...confirmDialog, open: false }); setForceRotation(false); }}>Отмена</Button>
+          <Button onClick={() => { confirmDialog.onConfirm(forceRotation); setConfirmDialog({ ...confirmDialog, open: false }); }} variant="contained" color={confirmDialog.confirmColor}>
             {confirmDialog.confirmText}
           </Button>
         </DialogActions>

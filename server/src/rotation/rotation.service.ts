@@ -128,8 +128,10 @@ export class RotationService implements OnModuleInit {
     await this.settingRepo.save(s);
   }
 
-  async performRotation() {
-    this.logger.debug('Запуск плановой ротации...');
+  async performRotation(force = false) {
+    this.logger.debug(
+      `Запуск плановой ротации...${force ? ' (принудительно)' : ''}`,
+    );
 
     const defaultNode = await this.getDefaultNode();
     const isLoginSuccess = defaultNode ? true : await this.xuiService.login();
@@ -156,11 +158,11 @@ export class RotationService implements OnModuleInit {
     }
 
     for (const sub of subscriptions) {
-      const rotated = await this.rotateSubscription(sub, domains, defaultNode);
-      if (!rotated) {
+      if (!(await this.rotateSubscription(sub, domains, defaultNode, force))) {
         return {
           success: false,
-          message: 'Failed to delete old inbounds',
+          message:
+            'Ротация не завершена: проверьте создание и удаление инбаундов в журнале',
         };
       }
     }
@@ -173,30 +175,20 @@ export class RotationService implements OnModuleInit {
     sub: Subscription,
     domains: Domain[],
     defaultNode: Node | null,
+    force = false,
   ) {
-    this.logger.debug(`Ротация для подписки: ${sub.name} (${sub.uuid})`);
+    this.logger.debug(
+      `Ротация для подписки: ${sub.name} (${sub.uuid})${force ? ' [force]' : ''}`,
+    );
 
-    // Удаляем старые инбаунды
-    if (sub.inbounds && sub.inbounds.length > 0) {
-      for (const inbound of sub.inbounds) {
-        if (inbound.xuiId && inbound.xuiId > 0) {
-          const isDeleted = await this.xuiService.deleteInbound(
-            inbound.xuiId,
-            await this.resolveInboundNode(inbound),
-          );
-          if (!isDeleted) {
-            this.logger.error(
-              `Failed to delete old inbound ${inbound.xuiId}; rotation for subscription ${sub.id} is aborted`,
-            );
-            return false;
-          }
-        }
-        await this.inboundRepo.delete(inbound.id);
-      }
-    }
-
+    const inboundsConfig = sub.inboundsConfig || [];
     const baseNode = sub.node ?? defaultNode ?? undefined;
-    const keys = await this.xuiService.getNewX25519Cert(baseNode);
+    const needsReality = inboundsConfig.some((config) =>
+      config.type?.endsWith('-reality'),
+    );
+    const keys = needsReality
+      ? await this.xuiService.getNewX25519Cert(baseNode)
+      : { privateKey: '', publicKey: '' };
     if (!keys) {
       this.logger.error(
         'Не удалось получить Reality ключи, пропускаем подписку',
@@ -213,13 +205,14 @@ export class RotationService implements OnModuleInit {
     });
     const defaultFlagEmoji = flag?.value ?? '%F0%9F%92%AF';
 
-    // Получаем конфиг или пустой массив
-    const inboundsConfig = sub.inboundsConfig || [];
+    // Панель может отклонить часть типов (несовместимая схема, занятый порт),
+    // а ротация при этом отчитается об успехе — копим отказы и логируем итог.
+    const rejectedTypes: string[] = [];
 
     for (const config of inboundsConfig) {
       const type = config.type;
       // Routing metadata is emitted directly from the subscription configuration.
-      if (type === 'happ-routing') continue;
+      if (type === 'happ-routing' || type === 'incy-routing') continue;
       const uuid = uuidv4();
       const targetNode = await this.resolveNode(
         config.nodeId,
@@ -288,6 +281,7 @@ export class RotationService implements OnModuleInit {
           targetNode,
         );
         if (!xuiId) {
+          rejectedTypes.push(type);
           this.logger.warn(
             'Hysteria2 inbound was not created by 3x-ui; skipping subscription link for this inbound',
           );
@@ -302,7 +296,7 @@ export class RotationService implements OnModuleInit {
         );
         const newInbound = this.inboundRepo.create({
           xuiId,
-          port,
+          port: hysteriaConfig.port,
           protocol: 'hysteria2',
           remark: hysteriaConfig.remark,
           link: link,
@@ -375,6 +369,7 @@ export class RotationService implements OnModuleInit {
           break;
         default:
           this.logger.warn(`Неизвестный тип инбаунда: ${type}`);
+          rejectedTypes.push(type || 'unknown');
           continue;
       }
 
@@ -400,7 +395,7 @@ export class RotationService implements OnModuleInit {
 
         const newInbound = this.inboundRepo.create({
           xuiId: xuiId,
-          port: port,
+          port: xuiConfig.port,
           protocol: xuiConfig.protocol,
           remark: xuiConfig.remark,
           link: fullLink,
@@ -409,10 +404,47 @@ export class RotationService implements OnModuleInit {
           relayServer,
         });
         await this.inboundRepo.save(newInbound);
+      } else {
+        rejectedTypes.push(type);
       }
     }
 
-    return true;
+    if (rejectedTypes.length > 0) {
+      this.logger.error(
+        `Подписка "${sub.name}": 3x-ui отклонил ${rejectedTypes.length} из ${inboundsConfig.length} инбаундов (${rejectedTypes.join(', ')}). ` +
+          'Точная причина — в строках "3x-ui отклонил создание" выше.',
+      );
+      // Keep old working links if any replacement was rejected.
+      return false;
+    }
+
+    // Create replacements first. Only clean up records managed by this subscription;
+    // panel inbounds missing from our database may belong to another application.
+    let cleanupSucceeded = true;
+    for (const inbound of sub.inbounds || []) {
+      try {
+        if (!force && inbound.xuiId > 0) {
+          const deleted = await this.xuiService.deleteInbound(
+            inbound.xuiId,
+            await this.resolveInboundNode(inbound),
+          );
+          if (!deleted) {
+            cleanupSucceeded = false;
+            this.logger.warn(
+              `Не удалось удалить старый инбаунд ${inbound.xuiId}; запись сохранена для повторной очистки`,
+            );
+            continue;
+          }
+        }
+        await this.inboundRepo.delete(inbound.id);
+      } catch (error) {
+        cleanupSucceeded = false;
+        this.logger.warn(
+          `Ошибка очистки инбаунда ${inbound.id}: ${error instanceof Error ? error.message : 'unknown error'}`,
+        );
+      }
+    }
+    return cleanupSucceeded;
   }
 
   private pickDomain(list: Domain[]): string {
@@ -441,9 +473,12 @@ export class RotationService implements OnModuleInit {
 
   /**
    * Ручная ротация одной подписки (независимо от флага isAutoRotationEnabled)
+   * @param force - если true, не пытается удалять старые инбаунды с 3x-ui
    */
-  async rotateSingleSubscription(subscriptionId: string) {
-    this.logger.debug(`Запуск ручной ротации подписки: ${subscriptionId}`);
+  async rotateSingleSubscription(subscriptionId: string, force = false) {
+    this.logger.debug(
+      `Запуск ручной ротации подписки: ${subscriptionId}${force ? ' [force]' : ''}`,
+    );
 
     const sub = await this.subRepo.findOne({
       where: { id: subscriptionId },
@@ -471,11 +506,11 @@ export class RotationService implements OnModuleInit {
       return { success: false, message: 'Список доменов пуст!' };
     }
 
-    const rotated = await this.rotateSubscription(sub, domains, defaultNode);
-    if (!rotated) {
+    if (!(await this.rotateSubscription(sub, domains, defaultNode, force))) {
       return {
         success: false,
-        message: 'Failed to delete old inbounds',
+        message:
+          'Ротация не завершена: проверьте создание и удаление инбаундов в журнале',
       };
     }
 

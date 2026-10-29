@@ -430,7 +430,97 @@ describe('RotationService', () => {
   });
 
   describe('rotateSubscription (private)', () => {
-    it('должен удалить старые инбаунды перед ротацией', async () => {
+    it.each([false, true])(
+      'creates replacements before cleanup (force=%s)',
+      async (force) => {
+        const old = { id: 'old', xuiId: 101, nodeId: 'node-1' };
+        const sub = {
+          id: 'sub',
+          name: 'Test',
+          inbounds: [old],
+          inboundsConfig: [
+            { type: 'vless-tcp-reality', port: 443, sni: 'example.com' },
+          ],
+        };
+        mockXuiService.getNewX25519Cert.mockResolvedValue({
+          privateKey: 'key',
+          publicKey: 'pub',
+        });
+        mockInboundBuilder.buildVlessRealityTcp.mockReturnValue({
+          port: 443,
+          protocol: 'vless',
+          settings: '{}',
+        });
+        mockXuiService.addInbound.mockImplementation((config) => {
+          config.port = 12345;
+          return Promise.resolve(202);
+        });
+        const result = await (service as any).rotateSubscription(
+          sub,
+          [],
+          null,
+          force,
+        );
+        expect(result).toBe(true);
+        expect(mockInboundRepo.create).toHaveBeenCalledWith(
+          expect.objectContaining({ port: 12345 }),
+        );
+        expect(mockInboundRepo.save.mock.invocationCallOrder[0]).toBeLessThan(
+          mockInboundRepo.delete.mock.invocationCallOrder[0],
+        );
+        if (force) {
+          expect(mockXuiService.deleteInbound).not.toHaveBeenCalled();
+        } else {
+          expect(mockXuiService.deleteInbound).toHaveBeenCalledTimes(1);
+          expect(mockXuiService.deleteInbound).toHaveBeenCalledWith(
+            101,
+            undefined,
+          );
+        }
+      },
+    );
+
+    it('keeps old links and reports failure when a replacement is rejected', async () => {
+      mockXuiService.getNewX25519Cert.mockResolvedValue({
+        privateKey: 'key',
+        publicKey: 'pub',
+      });
+      mockInboundBuilder.buildVlessRealityTcp.mockReturnValue({
+        port: 443,
+        protocol: 'vless',
+        settings: '{}',
+      });
+      mockXuiService.addInbound.mockResolvedValue(null);
+      const result = await (service as any).rotateSubscription(
+        {
+          id: 'sub',
+          inbounds: [{ id: 'old', xuiId: 101 }],
+          inboundsConfig: [{ type: 'vless-tcp-reality', port: 443 }],
+        },
+        [],
+        null,
+      );
+      expect(result).toBe(false);
+      expect(mockXuiService.deleteInbound).not.toHaveBeenCalled();
+      expect(mockInboundRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('retains a managed record for retry when remote cleanup fails', async () => {
+      mockXuiService.deleteInbound.mockResolvedValue(false);
+      const result = await (service as any).rotateSubscription(
+        {
+          id: 'sub',
+          inbounds: [{ id: 'old', xuiId: 101 }],
+          inboundsConfig: [],
+        },
+        [],
+        null,
+      );
+      expect(result).toBe(false);
+      expect(mockInboundRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('должен удалить старые инбаунды после ротации', async () => {
       const mockInbound = {
         id: 'inb-1',
         xuiId: 101,
@@ -469,22 +559,23 @@ describe('RotationService', () => {
       expect(inboundRepo.delete).toHaveBeenCalled();
     });
 
-    it('does not create an inbound for Happ routing metadata', async () => {
-      await (service as any).rotateSubscription(
-        {
-          id: '1',
-          uuid: 'uuid-1',
-          isEnabled: true,
-          inbounds: [],
-          inboundsConfig: [
-            { type: 'happ-routing', routingProfile: '{"Name":"Test"}' },
-          ],
-        },
-        [],
-      );
-      expect(xuiService.addInbound).not.toHaveBeenCalled();
-      expect(inboundRepo.save).not.toHaveBeenCalled();
-    });
+    it.each(['happ-routing', 'incy-routing'])(
+      'does not create an inbound for %s metadata',
+      async (type) => {
+        await (service as any).rotateSubscription(
+          {
+            id: '1',
+            uuid: 'uuid-1',
+            isEnabled: true,
+            inbounds: [],
+            inboundsConfig: [{ type, routingProfile: '{"Name":"Test"}' }],
+          },
+          [],
+        );
+        expect(xuiService.addInbound).not.toHaveBeenCalled();
+        expect(inboundRepo.save).not.toHaveBeenCalled();
+      },
+    );
 
     it('должен обработать custom инбаунд без 3x-ui', async () => {
       const mockSub = {

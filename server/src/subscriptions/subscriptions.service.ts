@@ -10,6 +10,7 @@ import { Node } from '../nodes/entities/node.entity';
 import { Tunnel } from '../tunnels/entities/tunnel.entity';
 import { Inbound } from '../inbounds/entities/inbound.entity';
 import { buildHappRoutingLink } from './happ-routing';
+import { buildIncyRoutingLink } from './incy-routing';
 
 @Injectable()
 export class SubscriptionsService {
@@ -154,6 +155,10 @@ export class SubscriptionsService {
     inboundsConfig?: CreateSubscriptionDto['inboundsConfig'],
   ) {
     for (const config of inboundsConfig || []) {
+      if (config.type === 'incy-routing') {
+        buildIncyRoutingLink(config.routingProfile);
+        continue;
+      }
       if (config.type === 'happ-routing') {
         buildHappRoutingLink(config.routingProfile);
         continue;

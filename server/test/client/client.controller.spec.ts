@@ -74,14 +74,21 @@ describe('ClientController', () => {
     jest.clearAllMocks();
   });
 
-  it.each([false, true])(
-    'includes routing metadata in subscription (relay=%s)',
-    async (relay) => {
+  it.each([
+    ['happ', false],
+    ['happ', true],
+    ['incy', false],
+    ['incy', true],
+  ] as const)(
+    'includes %s routing metadata in subscription (relay=%s)',
+    async (scheme, relay) => {
       const profile = JSON.stringify({ Name: 'Test' });
-      const routing = `happ://routing/add/${Buffer.from(profile).toString('base64')}`;
+      const routing = `${scheme}://routing/add/${Buffer.from(profile).toString('base64')}`;
       mockSubRepo.findOne.mockResolvedValue({
         isEnabled: true,
-        inboundsConfig: [{ type: 'happ-routing', routingProfile: profile }],
+        inboundsConfig: [
+          { type: `${scheme}-routing`, routingProfile: profile },
+        ],
         inbounds: [{ link: 'vless://id@original:443', protocol: 'vless' }],
       });
       mockTunnelRepo.findOne.mockResolvedValue({ domain: 'relay.example' });

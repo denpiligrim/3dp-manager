@@ -144,7 +144,7 @@ vi.mock('@mui/icons-material', async () => {
     'Rafting', 'ScubaDiving', 'Diving', 'Fishing', 'Hiking', 'RunningWithErrors',
     'PlayCircleFilled', 'PauseCircleFilled', 'RefreshTwoTone', 'SubdirectoryArrowRight',
     'SubdirectoryArrowLeft', 'SettingsInputComponent', 'SettingsInputComponentOutlined',
-    'Dns',
+    'Dns', 'Hub', 'Sync',
   ]
 
   icons.forEach(name => {

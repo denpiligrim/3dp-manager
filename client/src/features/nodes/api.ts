@@ -17,8 +17,10 @@ export const nodesApi = {
     return data;
   },
 
-  async remove(id: string) {
-    const { data } = await api.delete<{ success: boolean }>(`/nodes/${id}`);
+  async remove(id: string, force?: boolean) {
+    const { data } = await api.delete<{ success: boolean }>(`/nodes/${id}`, {
+      params: force ? { force: 'true' } : undefined,
+    });
     return data;
   },
 

@@ -196,6 +196,24 @@ describe('SubscriptionsPage', () => {
   })
 
   describe('Диалог создания подписки', () => {
+    it('добавляет роутинг INCY отдельной кнопкой и отправляет профиль при сохранении', async () => {
+      setupMockGet({ subscriptions: [{
+        id: '1', name: 'INCY subscription', uuid: 'abc', inbounds: [],
+        inboundsConfig: [{ type: 'custom', link: 'vless://existing' }],
+      }] })
+      mockPut.mockResolvedValue({})
+      renderSubscriptionsPage()
+      fireEvent.click(await screen.findByTestId('icon-MoreVert'))
+      fireEvent.click(await screen.findByText('Редактировать'))
+      fireEvent.click(screen.getByText('Добавить роутинг INCY'))
+      const profile = 'https://example.com/profile.json'
+      fireEvent.change(await screen.findByLabelText('Профиль INCY (JSON, base64, URL или ссылка)'), { target: { value: profile } })
+      fireEvent.click(screen.getByRole('button', { name: 'Сохранить', exact: true }))
+      await waitFor(() => expect(mockPut).toHaveBeenCalledWith('/subscriptions/1', expect.objectContaining({
+        inboundsConfig: expect.arrayContaining([{ type: 'incy-routing', routingProfile: profile }]),
+      })))
+    })
+
     it('должен открывать диалог при клике на "Создать"', async () => {
       setupMockGet()
       renderSubscriptionsPage()
@@ -418,20 +436,20 @@ describe('SubscriptionsPage', () => {
   })
 
   describe('Редактирование подписки', () => {
-    it('сохраняет профиль Happ без порта и ноды', async () => {
+    it.each(['happ', 'incy'])('сохраняет профиль %s без порта и ноды', async (scheme) => {
       const profile = '{"Name":"Test"}'
       setupMockGet({ subscriptions: [{
         id: '1', name: 'Happ', uuid: 'abc-123', inbounds: [],
-        inboundsConfig: [{ type: 'happ-routing', routingProfile: profile }],
+        inboundsConfig: [{ type: `${scheme}-routing`, routingProfile: profile }],
       }] })
       mockPut.mockResolvedValue({})
       renderSubscriptionsPage()
       fireEvent.click(await screen.findByTestId('icon-MoreVert'))
       fireEvent.click(await screen.findByText('Редактировать'))
-      expect(await screen.findByLabelText('Профиль Happ (JSON, base64 или ссылка)')).toHaveValue(profile)
+      expect(await screen.findByLabelText(scheme === 'incy' ? 'Профиль INCY (JSON, base64, URL или ссылка)' : 'Профиль Happ (JSON, base64 или ссылка)')).toHaveValue(profile)
       fireEvent.click(screen.getByText('Сохранить'))
       await waitFor(() => expect(mockPut).toHaveBeenCalledWith('/subscriptions/1', {
-        name: 'Happ', inboundsConfig: [{ type: 'happ-routing', routingProfile: profile }],
+        name: 'Happ', inboundsConfig: [{ type: `${scheme}-routing`, routingProfile: profile }],
       }))
     })
 
@@ -609,6 +627,25 @@ describe('SubscriptionsPage', () => {
       await waitFor(() => {
         expect(screen.getByText('Подписка удалена')).toBeInTheDocument()
       })
+    })
+  })
+
+  describe('Принудительная ротация', () => {
+    it.each([false, true])('передаёт выбранный режим после открытия диалога (all=%s)', async (all) => {
+      setupMockGet({ subscriptions: [{ id: '1', name: 'Test Sub', uuid: 'abc', inbounds: [] }] })
+      mockPost.mockResolvedValue({ data: { success: true } })
+      renderSubscriptionsPage()
+      if (all) {
+        fireEvent.click(await screen.findByText('Обновить все'))
+      } else {
+        fireEvent.click(await screen.findByTestId('icon-MoreVert'))
+        fireEvent.click(await screen.findByText('Обновить сейчас'))
+      }
+      fireEvent.click(await screen.findByLabelText('Принудительная ротация'))
+      fireEvent.click(screen.getByRole('button', { name: all ? 'Сгенерировать' : 'Обновить', exact: true }))
+      await waitFor(() => expect(mockPost).toHaveBeenCalledWith(
+        all ? '/rotation/rotate-all?force=true' : '/rotation/rotate-one/1?force=true',
+      ))
     })
   })
 
