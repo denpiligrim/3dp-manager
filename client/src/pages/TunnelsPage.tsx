@@ -160,20 +160,21 @@ export default function TunnelsPage() {
     };
 
     try {
-      await api.post('/tunnels', payload);
+      const { data } = await api.post<Tunnel>('/tunnels', payload);
       setOpen(false);
       resetForm();
       loadData();
       setSnackbar({ open: true, type: 'success', message: 'Relay сервер добавлен' });
+      handleInstall(data.id, 'Relay сервер добавлен. Установить скрипт перенаправления сейчас?');
     } catch (error) {
       setSnackbar({ open: true, type: 'error', message: getApiErrorMessage(error, 'Не удалось добавить relay сервер') });
     }
   };
 
-  const handleInstall = (id: number) => {
+  const handleInstall = (id: number, title = 'Установить перенаправление на выбранный сервер?') => {
     setConfirmDialog({
       open: true,
-      title: 'Установить перенаправление на выбранный сервер?',
+      title,
       confirmText: 'Установить',
       confirmColor: 'primary',
       onConfirm: async () => {
