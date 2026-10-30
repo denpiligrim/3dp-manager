@@ -19,7 +19,7 @@ export class DomainsService implements OnModuleInit {
 
     if (count === 0) {
       const defaultDomains = [
-        'ya.ru',
+        'yastatic.net',
         'vk.com',
         'ok.ru',
         'gosuslugi.ru',
