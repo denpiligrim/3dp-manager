@@ -32,23 +32,24 @@ describe('theme', () => {
     it('должен использовать lightPalette для light mode', () => {
       const tokens = getDesignTokens('light')
       
-      expect(tokens.palette.primary.main).toBe('#1395de')
-      expect(tokens.palette.background.default).toBe('#f3f4f6')
+      expect(tokens.palette.primary.main).toBe('#2463b4')
+      expect(tokens.palette.background.default).toBe('#f4f7fb')
       expect(tokens.palette.background.paper).toBe('#ffffff')
     })
 
     it('должен использовать darkPalette для dark mode', () => {
       const tokens = getDesignTokens('dark')
       
-      expect(tokens.palette.primary.main).toBe('#1395de')
-      expect(tokens.palette.background.default).toBe('#0B0F19')
-      expect(tokens.palette.background.paper).toBe('#111827')
+      expect(tokens.palette.primary.main).toBe('#8abbff')
+      expect(tokens.palette.background.default).toBe('#101925')
+      expect(tokens.palette.background.paper).toBe('#182333')
     })
 
     it('должен устанавливать fontFamily', () => {
       const tokens = getDesignTokens('light')
       
-      expect(tokens.typography.fontFamily).toBe('"Inter", "Roboto", "Helvetica", "Arial", sans-serif')
+      expect(tokens.typography.fontFamily).toContain('"Inter"')
+      expect(tokens.typography.fontFamily).toContain('system-ui')
     })
 
     it('должен устанавливать fontWeight для заголовков', () => {
@@ -87,10 +88,10 @@ describe('theme', () => {
       expect(darkTokens.components.MuiCssBaseline.styleOverrides).toBeDefined()
     })
 
-    it('должен настраивать MuiButton с borderRadius 8', () => {
+    it('должен настраивать MuiButton с borderRadius 9', () => {
       const tokens = getDesignTokens('light')
       
-      expect(tokens.components.MuiButton.styleOverrides.root.borderRadius).toBe(8)
+      expect(tokens.components.MuiButton.styleOverrides.root.borderRadius).toBe(9)
       expect(tokens.components.MuiButton.styleOverrides.root.boxShadow).toBe('none')
     })
 
@@ -104,22 +105,24 @@ describe('theme', () => {
       const lightTokens = getDesignTokens('light')
       const darkTokens = getDesignTokens('dark')
       
-      expect(lightTokens.components.MuiPaper.styleOverrides.elevation1.border).toBe('1px solid #e5e7eb')
-      expect(darkTokens.components.MuiPaper.styleOverrides.elevation1.border).toBe('1px solid #374151')
+      expect(lightTokens.components.MuiPaper.styleOverrides.elevation1.border).toBe('1px solid #dce4ef')
+      expect(darkTokens.components.MuiPaper.styleOverrides.elevation1.border).toBe('1px solid #304054')
     })
 
     it('должен настраивать MuiOutlinedInput с правильными borderColor', () => {
       const lightTokens = getDesignTokens('light')
       const darkTokens = getDesignTokens('dark')
       
-      expect(lightTokens.components.MuiOutlinedInput.styleOverrides.root['& .MuiOutlinedInput-notchedOutline'].borderColor).toBe('#e5e7eb')
-      expect(darkTokens.components.MuiOutlinedInput.styleOverrides.root['& .MuiOutlinedInput-notchedOutline'].borderColor).toBe('#374151')
+      expect(lightTokens.components.MuiOutlinedInput.styleOverrides.root['& .MuiOutlinedInput-notchedOutline'].borderColor).toBe('#dce4ef')
+      expect(darkTokens.components.MuiOutlinedInput.styleOverrides.root['& .MuiOutlinedInput-notchedOutline'].borderColor).toBe('#304054')
     })
 
-    it('должен настраивать MuiAppBar с backdropFilter', () => {
+    it('должен применять backdropFilter при поддержке браузером и сохранять непрозрачный фон без неё', () => {
       const tokens = getDesignTokens('light')
       
-      expect(tokens.components.MuiAppBar.styleOverrides.root.backdropFilter).toBe('blur(8px)')
+      const root = tokens.components.MuiAppBar.styleOverrides.root
+      expect(root.backgroundColor).toBe(tokens.palette.background.paper)
+      expect(root['@supports ((backdrop-filter: blur(12px)) or (-webkit-backdrop-filter: blur(12px)))'].backdropFilter).toBe('blur(12px)')
       expect(tokens.components.MuiAppBar.styleOverrides.root.boxShadow).toBe('none')
     })
 

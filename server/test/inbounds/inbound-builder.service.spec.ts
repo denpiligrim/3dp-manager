@@ -34,23 +34,75 @@ describe('InboundBuilderService', () => {
   });
 
   it.each([
+    ['second.denpiligrim.ru', 'second.denpiligrim.ru'],
+    ['192.0.2.1', 'ip'],
+    ['2001:db8::1', 'ip'],
+    ['[2001:db8::1]', 'ip'],
+  ])(
+    'uses the certificate directory for %s without changing the server name',
+    (sni, directory) => {
+      const inbound = service.buildHysteria2Inbound({
+        port: 443,
+        uuid: 'test',
+        sni,
+      });
+      const tls = JSON.parse(inbound.streamSettings).tlsSettings;
+      expect(tls.serverName).toBe(sni);
+      expect(tls.certificates[0]).toMatchObject({
+        certificateFile: `/root/cert/${directory}/fullchain.pem`,
+        keyFile: `/root/cert/${directory}/privkey.pem`,
+      });
+    },
+  );
+
+  it.each([
     'buildVlessRealityTcp',
     'buildVlessRealityXhttp',
     'buildVlessRealityGrpc',
     'buildTrojanRealityTcp',
-  ] as const)('%s preserves selected fingerprints in settings and links', (method) => {
-    const params = {
-      port: 443, uuid: 'test-uuid', sni: 'example.com',
-      privateKey: 'private-key', publicKey: 'public-key',
-    };
-    for (const fingerprint of [undefined, 'chrome', 'firefox', 'safari', 'ios', 'android', 'edge', '360', 'qq', 'random', 'randomized', 'randomizednoalpn', 'unsafe']) {
-      const inbound = service[method]({ ...params, fingerprint });
-      const expected = fingerprint ?? 'edge';
-      expect(JSON.parse(inbound.streamSettings).realitySettings.settings.fingerprint).toBe(expected);
-      const link = new URL(service.buildInboundLink(inbound, 'node.example.com', 'test-uuid', ''));
-      expect(link.searchParams.get('fp')).toBe(expected);
-    }
-  });
+  ] as const)(
+    '%s preserves selected fingerprints in settings and links',
+    (method) => {
+      const params = {
+        port: 443,
+        uuid: 'test-uuid',
+        sni: 'example.com',
+        privateKey: 'private-key',
+        publicKey: 'public-key',
+      };
+      for (const fingerprint of [
+        undefined,
+        'chrome',
+        'firefox',
+        'safari',
+        'ios',
+        'android',
+        'edge',
+        '360',
+        'qq',
+        'random',
+        'randomized',
+        'randomizednoalpn',
+        'unsafe',
+      ]) {
+        const inbound = service[method]({ ...params, fingerprint });
+        const expected = fingerprint ?? 'firefox';
+        expect(
+          JSON.parse(inbound.streamSettings).realitySettings.settings
+            .fingerprint,
+        ).toBe(expected);
+        const link = new URL(
+          service.buildInboundLink(
+            inbound,
+            'node.example.com',
+            'test-uuid',
+            '',
+          ),
+        );
+        expect(link.searchParams.get('fp')).toBe(expected);
+      }
+    },
+  );
 
   it('preserves the XHTTP GET transport settings in direct and relay subscription links', () => {
     const inbound = service.buildVlessXhttpGet({
@@ -302,7 +354,69 @@ describe('InboundBuilderService', () => {
       const result = service.buildVlessWs(params);
 
       const streamSettings = JSON.parse(result.streamSettings);
-      expect(streamSettings.wsSettings?.path).toBe('/');
+      expect(streamSettings.wsSettings?.path).toBe('/ws');
+    });
+  });
+
+  it.each([
+    ['node.example.com', 'node.example.com', undefined],
+    ['192.0.2.1', 'ip', 'chrome'],
+    ['2001:db8::1', 'ip', 'safari'],
+  ])(
+    'builds a WS TLS inbound and direct/relay links for node %s',
+    (sni, directory, fingerprint) => {
+      const inbound = service.buildVlessWs({
+        port: 443,
+        uuid: 'test-uuid',
+        sni,
+        fingerprint,
+      });
+      const stream = JSON.parse(inbound.streamSettings);
+      expect(stream).toMatchObject({
+        network: 'ws',
+        security: 'tls',
+        wsSettings: { host: sni, path: '/ws' },
+        tlsSettings: {
+          serverName: sni,
+          settings: {
+            fingerprint: fingerprint || 'firefox',
+            allowInsecure: false,
+          },
+          certificates: [
+            expect.objectContaining({
+              certificateFile: `/root/cert/${directory}/fullchain.pem`,
+              keyFile: `/root/cert/${directory}/privkey.pem`,
+            }),
+          ],
+        },
+      });
+      for (const address of [sni, 'relay.example.com']) {
+        const link = new URL(
+          service.buildInboundLink(inbound, address, 'test-uuid', ''),
+        );
+        expect(link.searchParams.get('host')).toBe(sni);
+        expect(link.searchParams.get('sni')).toBe(sni);
+        expect(link.searchParams.get('path')).toBe('/ws');
+        expect(link.searchParams.get('security')).toBe('tls');
+        expect(link.searchParams.get('fp')).toBe(fingerprint || 'firefox');
+        expect(link.searchParams.has('pbk')).toBe(false);
+      }
+    },
+  );
+
+  it('preserves custom certificate files for WS TLS', () => {
+    const inbound = service.buildVlessWs({
+      port: 443,
+      uuid: 'test',
+      sni: 'node.example.com',
+      certificateFile: '/custom/fullchain.pem',
+      keyFile: '/custom/key.pem',
+    });
+    expect(
+      JSON.parse(inbound.streamSettings).tlsSettings.certificates[0],
+    ).toMatchObject({
+      certificateFile: '/custom/fullchain.pem',
+      keyFile: '/custom/key.pem',
     });
   });
 

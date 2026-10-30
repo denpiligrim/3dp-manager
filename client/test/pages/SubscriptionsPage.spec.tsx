@@ -510,6 +510,25 @@ describe('SubscriptionsPage', () => {
   })
 
   describe('Редактирование подписки', () => {
+    it('saves WS TLS fingerprint and certificate paths while deriving SNI from the node', async () => {
+      setupMockGet({ subscriptions: [{ id: 'ws-sub', name: 'WS', uuid: 'ws-uuid', inbounds: [], inboundsConfig: [{ type: 'vless-ws', nodeId: 'node-1', port: 443, sni: 'random', fingerprint: 'chrome' }] }] })
+      mockPut.mockResolvedValue({})
+      renderSubscriptionsPage()
+      fireEvent.click(await screen.findByTestId('icon-MoreVert'))
+      fireEvent.click(await screen.findByText('Редактировать'))
+      await goToInbounds()
+      expect(screen.getByLabelText('Сертификат')).toHaveValue('/root/cert/node.example/fullchain.pem')
+      expect(screen.getByLabelText('Приватный ключ')).toHaveValue('/root/cert/node.example/privkey.pem')
+      fireEvent.mouseDown(screen.getByLabelText('Fingerprint'))
+      fireEvent.click(await screen.findByRole('option', { name: 'safari' }))
+      expect(screen.queryByText('SNI')).not.toBeInTheDocument()
+      fireEvent.change(screen.getByLabelText('Сертификат'), { target: { value: '/custom/cert.pem' } })
+      fireEvent.change(screen.getByLabelText('Приватный ключ'), { target: { value: '/custom/key.pem' } })
+      await goToRouting()
+      fireEvent.click(screen.getByText('Сохранить'))
+      await waitFor(() => expect(mockPut).toHaveBeenCalledWith('/subscriptions/ws-sub', expect.objectContaining({ inboundsConfig: [expect.objectContaining({ type: 'vless-ws', fingerprint: 'safari', certificateFile: '/custom/cert.pem', keyFile: '/custom/key.pem', sni: undefined })] })))
+    })
+
     it.each(['happ', 'incy'])('сохраняет профиль %s без порта и ноды', async (scheme) => {
       const profile = '{"Name":"Test"}'
       setupMockGet({ subscriptions: [{
@@ -774,7 +793,7 @@ describe('SubscriptionsPage', () => {
         fireEvent.click(generate)
         fireEvent.click(generate)
         expect(mockPost.mock.calls.filter(([url]) => url === '/rotation/rotate-one/new-sub')).toHaveLength(1)
-        expect(await screen.findByRole('status')).toHaveTextContent('Выполняется генерация подписки')
+        expect(await screen.findByRole('status')).toHaveTextContent('Выполняется генерация инбаундов')
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
       } finally {
         await act(async () => { finish({ data: { success: true, message: 'Готово' } }) })

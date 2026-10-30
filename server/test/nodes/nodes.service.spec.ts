@@ -5,19 +5,28 @@ import { Subscription } from 'src/subscriptions/entities/subscription.entity';
 import { Tunnel } from 'src/tunnels/entities/tunnel.entity';
 import { Inbound } from 'src/inbounds/entities/inbound.entity';
 import { XuiService } from 'src/xui/xui.service';
+import { DomainsService } from 'src/domains/domains.service';
 
 describe('NodesService', () => {
-  const createNodeRepo = (getOne: jest.Mock) => ({
-    createQueryBuilder: jest.fn(() => ({
-      addSelect: jest.fn().mockReturnThis(),
-      where: jest.fn().mockReturnThis(),
-      getOne,
-    })),
-    count: jest.fn(),
-    remove: jest.fn(),
-    findOne: jest.fn(),
-    save: jest.fn(),
-  });
+  const createNodeRepo = (getOne: jest.Mock) => {
+    const repo = {
+      create: jest.fn((value) => ({ ...value })),
+      createQueryBuilder: jest.fn(() => ({
+        addSelect: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        getOne,
+      })),
+      count: jest.fn(),
+      remove: jest.fn(),
+      findOne: jest.fn(),
+      save: jest.fn(),
+    };
+    const manager = { getRepository: jest.fn(() => repo) };
+    return {
+      ...repo,
+      manager: { transaction: jest.fn((action) => action(manager)) },
+    };
+  };
 
   const createService = (nodeRepo: ReturnType<typeof createNodeRepo>) => {
     const subscriptionsRepo = {
@@ -42,6 +51,7 @@ describe('NodesService', () => {
     const xuiService = {
       deleteInbound: jest.fn().mockResolvedValue(true),
     };
+    const domainsService = { addHostDomain: jest.fn() };
 
     return {
       service: new NodesService(
@@ -50,13 +60,43 @@ describe('NodesService', () => {
         tunnelsRepo as unknown as Repository<Tunnel>,
         inboundsRepo as unknown as Repository<Inbound>,
         xuiService as unknown as XuiService,
+        domainsService as unknown as DomainsService,
       ),
       subscriptionsRepo,
       tunnelsRepo,
       inboundsRepo,
       xuiService,
+      domainsService,
     };
   };
+
+  it.each(['second.denpiligrim.ru', '192.0.2.1'])(
+    'registers the node domain in the same creation transaction (%s)',
+    async (host) => {
+      const repo = createNodeRepo(jest.fn());
+      repo.count.mockResolvedValue(1);
+      repo.save.mockImplementation(async (value) => ({
+        ...value,
+        id: 'created',
+      }));
+      const { service, domainsService } = createService(repo);
+      const domain = host === 'second.denpiligrim.ru' ? host : undefined;
+      jest
+        .spyOn(service as any, 'resolveNodeLocation')
+        .mockResolvedValue({ host, domain, ip: '192.0.2.1' });
+      await service.create({
+        name: 'New node',
+        url: `https://${host}`,
+        authType: 'token' as any,
+        token: 'test',
+      });
+      expect(domainsService.addHostDomain).toHaveBeenCalledWith(
+        domain,
+        expect.objectContaining({ getRepository: expect.any(Function) }),
+      );
+      expect(repo.manager.transaction).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it('deletes the main node and makes the next node main', async () => {
     const mainNode = { id: 'main', isMain: true } as Node;
@@ -95,22 +135,41 @@ describe('NodesService', () => {
     expect(nodeRepo.remove).toHaveBeenCalledWith(node);
   });
 
-  it.each([false, true])('deletes all subscriptions when the last node is removed (force=%s)', async (force) => {
-    const node = { id: 'last', isMain: true } as Node;
-    const nodeRepo = createNodeRepo(jest.fn().mockResolvedValueOnce(node).mockResolvedValue(null));
-    nodeRepo.count.mockResolvedValue(1);
-    const { service, subscriptionsRepo, tunnelsRepo, inboundsRepo, xuiService } = createService(nodeRepo);
-    inboundsRepo.find.mockResolvedValue([{ id: 1, xuiId: 101, nodeId: 'last' }]);
+  it.each([false, true])(
+    'deletes all subscriptions when the last node is removed (force=%s)',
+    async (force) => {
+      const node = { id: 'last', isMain: true } as Node;
+      const nodeRepo = createNodeRepo(
+        jest.fn().mockResolvedValueOnce(node).mockResolvedValue(null),
+      );
+      nodeRepo.count.mockResolvedValue(1);
+      const {
+        service,
+        subscriptionsRepo,
+        tunnelsRepo,
+        inboundsRepo,
+        xuiService,
+      } = createService(nodeRepo);
+      inboundsRepo.find.mockResolvedValue([
+        { id: 1, xuiId: 101, nodeId: 'last' },
+      ]);
 
-    await service.remove('last', force);
+      await service.remove('last', force);
 
-    expect(subscriptionsRepo.createQueryBuilder).toHaveBeenCalledTimes(1);
-    expect(subscriptionsRepo.createQueryBuilder.mock.results[0].value.delete).toHaveBeenCalled();
-    expect(subscriptionsRepo.createQueryBuilder.mock.results[0].value.execute).toHaveBeenCalled();
-    expect(tunnelsRepo.createQueryBuilder.mock.results[0].value.execute).toHaveBeenCalled();
-    expect(nodeRepo.remove).toHaveBeenCalledWith(node);
-    expect(xuiService.deleteInbound).toHaveBeenCalledTimes(force ? 0 : 1);
-  });
+      expect(subscriptionsRepo.createQueryBuilder).toHaveBeenCalledTimes(1);
+      expect(
+        subscriptionsRepo.createQueryBuilder.mock.results[0].value.delete,
+      ).toHaveBeenCalled();
+      expect(
+        subscriptionsRepo.createQueryBuilder.mock.results[0].value.execute,
+      ).toHaveBeenCalled();
+      expect(
+        tunnelsRepo.createQueryBuilder.mock.results[0].value.execute,
+      ).toHaveBeenCalled();
+      expect(nodeRepo.remove).toHaveBeenCalledWith(node);
+      expect(xuiService.deleteInbound).toHaveBeenCalledTimes(force ? 0 : 1);
+    },
+  );
 
   it('preserves subscriptions when another node remains', async () => {
     const node = { id: 'one', isMain: false } as Node;

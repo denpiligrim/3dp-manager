@@ -1,244 +1,117 @@
-[Русский](/README.md) | [English](/README_EN.md) | [中文](/README_CN.md) | [فارسی](/README_IR.md)
+[Русский](README.md) · [English](README_EN.md) · [中文](README_CN.md) · [فارسی](README_IR.md)
 
 <p><img src="https://denpiligrim.ru/storage/images/3dp-manager.png" alt="3dp-manager preview"></p>
 
-![Version](https://img.shields.io/badge/version-3.0.0-blue.svg) ![Downloads](https://img.shields.io/badge/downloads-5.1k-blue) [![License](https://img.shields.io/badge/license-GPL%20V3-blue.svg?longCache=true)](https://www.gnu.org/licenses/gpl-3.0) [![Telegram](https://img.shields.io/badge/Telegram-26A5E4?style=flat&logo=telegram&logoColor=white)](https://t.me/denpiligrim_web) [![YouTube Channel Subscribers](https://img.shields.io/youtube/channel/subscribers/UCOv2tFFYDY4mXOM60PVz8zw)](https://www.youtube.com/@denpiligrim)
+![Version](https://img.shields.io/badge/version-3.0.0-blue.svg) ![Downloads](https://img.shields.io/badge/downloads-7k-blue) [![License](https://img.shields.io/badge/license-GPL%20V3-blue.svg?longCache=true)](https://www.gnu.org/licenses/gpl-3.0) [![Telegram](https://img.shields.io/badge/Telegram-26A5E4?style=flat&logo=telegram&logoColor=white)](https://t.me/denpiligrim_web) [![YouTube](https://img.shields.io/badge/DenPiligrim-11k-red?style=flat&logo=youtube)](https://www.youtube.com/@denpiligrim)
 
 # 3DP-MANAGER
 
-[3x-ui](https://github.com/MHSanaei/3x-ui) paneli üçin inbound-lary awtomatiki döretmäge, birleşdirilen abunalary düzmäge, birnäçe 3x-ui node-ny dolandyrmaga we aralyk serwerlerden esasy serwerlere relay forwarding sazlamaga niýetlenen gural. 2.0.0 wersiýadan bäri taslamada grafiki interfeýs we ýönekeý ulanyjy sazlamalary bar.
-
-**Taslamany goldaň**
-
-- Bank geçirimi:
-  - :credit_card: MIR kart: `2204320436318077`
-  - :credit_card: MasterCard: `5395452209474530`
-- Elektron gapjyk:
-  - :moneybag: YooMoney: `4100116897060652`
-  - :moneybag: PayPal: `vasiljevdenisx@gmail.com`
-- Kriptowalýuta:
-  - :coin: USDT | ETH (ERC20 | BEP20): `0x6fe140040f6Cdc1E1Ff2136cd1d60C0165809463`
-  - :coin: USDT | TRX (TRC20): `TEWxXmJxvkAmhshp7E61XJGHB3VyM9hNAb`
-  - :coin: Bitcoin: `bc1qctntwncsv2yn02x2vgnkrqm00c4h04c0afkgpl`
-  - :coin: TON: `UQCZ3MiwyYHXftPItMMzJRYRiKHugr16jFMq2nfOQOOoemLy`
-  - :coin: Bybit ID: `165292278`
-
-## Düşündiriş
-
-Guralyň esasy maksady trafigiňiziň birmeňzeş görünmezligini gazanmakdyr. 3DP-MANAGER bellenen aralykda dürli parametrli baglanyşyklar toplumyny döredýär:
-
-- protokollar: `vless`, `vmess`, `shadowsocks`, `hysteria2`, `trojan`;
-- portlar: hemişelik `443`, `8443` we `10000-60000` aralygyndaky tötänleýin portlar;
-- transport: `tcp`, `websocket`, `grpc`, `xhttp`;
-- SNI domen whitelist-den alynýar ýa-da el bilen berilýär;
-- her inbound üçin node, relay serwer, port we baýdak aýratyn sazlanýar.
-
-Ähli baglanyşyklar statik URL-li bir abuna birleşdirilýär. 3DP-MANAGER `3x-ui` paneli bilen onuň açyk API-si arkaly işleýär we paneliň içki işine göni gatyşmaýar.
-
-Ikinji maksat baglanyşygyň durnuklylygydyr: müşderi birnäçe baglanyşyk wariantyny alýar we islänini saýlap bilýär. Bir abuna dürli node-lardan inbound-lary, relay serwerleri we custom baglanyşyk hökmünde taýýar daşarky linkleri goşup bolýar.
-
-Mundan başga-da, 3DP-MANAGER kaskadly shemada ulanylyp bilner. Forwarding hyzmaty abunany we trafigi saýlanan node-a ugrukdyrmagy sazlaýar.
-
-Maslahatlar:
-
-- Abuna üçin HTTPS ulanyň (domen + SSL şahadatnamasy).
-- Döretmek aralygyny azyndan 10 minut goýuň; durnuklylyk üçin günde bir gezek (1440 minut) maslahat berilýär.
-- Müşderide awtomatiki täzelenmäni ýygy goýuň, meselem her sagat, serwer bilen sazlaşyk saklansyn.
+[3x-ui](https://github.com/MHSanaei/3x-ui) API-si arkaly birikmeleri we abunalary dolandyrmak üçin web programma. Birnäçe noduň giriş birikmelerini üýtgemeýän URL-li bir abunada birleşdirýär we olary el bilen ýa-da tertipnama boýunça täzeleýär.
 
 ## Mümkinçilikler
 
-- Bir ýa-da birnäçe abuna üçin dürli baglanyşyklar döredýär
-- Statik URL bilen birleşdirilen abuna döredýär
-- Birnäçe `3x-ui` node-ny dolandyrýar
-- Node autentifikasiýasyny login/password ýa-da token arkaly goldaýar
-- Panel URL-den node IP-sini, ýurduny we baýdagyny awtomatiki kesgitleýär
-- Her inbound üçin node, relay serwer, baýdak, SNI we port saýlamaga mümkinçilik berýär
-- Hemişelik porty ýa-da `random` bahasyny goldaýar
-- Custom baglanyşyklary goldaýar: taýýar daşarky linki abuna goşup bolýar
-- Hysteria2 UDP üçin `fullchain.pem` we `privkey.pem` ýollaryny aýratyn görkezmäge mümkinçilik berýär
-- Öz domen `whitelist` sanawyňyzy goldaýar
-- Relay forwarding-i awtomatiki sazlamak mümkinçiligi bar
-- Web UI HTTP ýa-da HTTPS arkaly gurnalýar: Let's Encrypt, self-signed ýa-da öz şahadatnamalaryňyz
+- Token ýa-da ulanyjy ady we parol arkaly tassyklanylýan birnäçe 3x-ui noduny dolandyrmak.
+- Her giriş birikmesi üçin nod, relay, port, baýdak we at aýratyn saýlanýar.
+- 3x-ui paneliniň Clients bölümindäki bar bolan müşderini ulanmak ýa-da müşderini awtomatiki döretmek.
+- Daşarky birikme salgylaryny we Happ hem-de INCY ugurlaşdyrma profillerini goşmak.
+- Abuna belligi, goldaw we web sahypa salgylary, trafik statistikasy we möhletiň gutarmagy baradaky maglumatlar.
+- SNI domenleriniň sanawyny import, eksport etmek we awtomatiki gözlemek. Nod ýa-da relay döredilende onuň domeni sanawa awtomatiki goşulýar; IP salgylary goşulmaýar.
+- Ýüküň çäklendirilmegi, gaýtadan synanyşyklar we amallaryň žurnaly bilen fonda döretmek we pozmak.
 
 ## Talaplar
 
-- Ubuntu 20.04 ýa-da täze, Debian 12.11 ýa-da täze
-- `3x-ui` paneli v2.8.4 ýa-da täze
-- Serwerde root elýeterliligi
-- Docker we Docker Compose; ýok bolsa, gurnama skripti olary awtomatiki gurnamaga synanyşar
-- Domen + SSL şahadatnamasy (islege bagly)
-
----
+- Ubuntu ýa-da Debian serweri we gurnama skripti üçin root ygtyýary.
+- Docker we Docker Compose; ýok bolsa, gurnaýjy olary gurnar.
+- Giriş birikmeleri we Clients API-leri elýeterli bolan bir ýa-da birnäçe 3x-ui paneli. Protokollaryň we tokenleriň goldawy paneliň wersiýasyna bagly.
+- Relay üçin aralyk serwere SSH arkaly giriş.
+- TLS giriş birikmeleri üçin degişli noduň üstünde sertifikat we şahsy açar.
 
 ## Gurnama
 
-`3x-ui` dolandyryş paneli öňünden gurnalan bolmaly. Ony şu komanda bilen gurnap bilersiňiz: `bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)`
-
-Taslamany serwere gurnaň:
+Serwerde root hökmünde ýerine ýetiriň:
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/install.sh)
 ```
 
-Gurnama wagtynda skript:
+Gurnaýjy PostgreSQL-i, backend-i we frontend-i `/opt/3dp-manager` katalogynda ýerleşdirýär. HTTP ýa-da Let's Encrypt, öz sertifikatyňyz ýa-da öz-özüne gol çekilen sertifikat bilen HTTPS saýlap bilersiňiz. Interfeýsiň salgysy, porty, ulanyjy ady we paroly gurnamanyň ahyrynda görkezilýär. Gireniňizden soň paroly **Sazlamalar (Настройки)** bölüminde üýtgediň.
 
-- OS, root elýeterliligi, Docker we Docker Compose-y barlaýar;
-- RAM az we swap ýok bolsa, 2 GB swap faýl döredýär;
-- Web UI elýeterlilik görnüşini saýladýar:
-  - Let's Encrypt arkaly HTTPS;
-  - self-signed şahadatnama bilen HTTPS;
-  - öz şahadatnamalaryňyz bilen HTTPS;
-  - şifrlemesiz HTTP;
-- Web UI üçin tötänleýin port döredýär;
-- administrator login we password döredýär;
-- `postgres`, `backend` we `frontend` konteýnerlerini işe goýberýär.
+## Sazlama
 
-Gurnama tamamlanandan soň terminalda URL, login we password görkeziler. Password-y derrew 3DP-MANAGER sazlamalarynda üýtgediň.
+1. **Nodlar (Ноды)** bölüminde 3x-ui paneliniň URL-sini, giriş maglumatlaryny, IP salgysyny we baýdagyny goşuň. IP we ýurt awtomatiki kesgitlenýär, olary el bilen düzedip bolýar. Esasy nod deslapky nod hökmünde ulanylýar.
+2. Zerur bolsa, **Relay serwerleri (Relay серверы)** bölüminde aralyk serweri goşuň, onuň noduny saýlaň we ugrukdyrmany interfeýs arkaly guruň. Relay hostuny domen ýa-da IP salgysy hökmünde görkezip bolýar.
+3. **Domenler (Домены)** bölüminde Reality birikmeleri üçin SNI sanawyny sazlaň.
+4. **Abunalar (Подписки)** bölüminde esasy maglumatlary dolduryň, giriş birikmelerini we zerur bolsa ugurlaşdyrma profillerini goşuň. Bir abunada jemi 20-e çenli element bolup biler.
+5. Abunany ýatda saklaň we döretmegi başladyň. Onuň URL-sini müşderi programmasyna göçüriň. Abunanyň salgysy `/bus/<UUID>` görnüşinde bolup, rotasiýa wagtynda üýtgemeýär.
 
-<sup>Gysgaça: interaktiw gurnama skriptini işledýär, gurşawy taýýarlaýar we taslamanyň konteýnerlerini ýerleşdirýär.</sup>
+**Müşderiniň ID-si** meýdany 3x-ui panelindäki bar bolan müşderiniň ID-sini, email-ini ýa-da adyny kabul edýär. Şol müşderi saýlanan nodlaryň ählisinde elýeterli bolmaly. Meýdan boş bolsa, programma müşderini awtomatiki döredýär. Onuň identifikatory abunanyň adynyň aşagynda görkezilýär.
 
-## Täzelemek
+Tertipnama boýunça döretmek üçin degişli abunalarda awtomatiki rotasiýany açyň we azyndan 10 minutlyk umumy aralyk belläň. El bilen täzelemek bir abuna ýa-da awtomatiki rotasiýasy açyk ähli işjeň abunalar üçin elýeterlidir.
 
-Soňky wersiýa çenli täzelemek:
+## Birikme görnüşleri
+
+| Görnüş | Transport we howpsuzlyk |
+| --- | --- |
+| `vless-tcp-reality` | VLESS TCP + Reality |
+| `vless-xhttp-reality` | VLESS XHTTP + Reality |
+| `vless-xhttp-get` | VLESS XHTTP, `packet-up`, GET bilen maglumat ibermek, TLS ýok |
+| `vless-grpc-reality` | VLESS gRPC + Reality |
+| `vless-ws` | VLESS WebSocket + TLS, ýol `/ws` |
+| `vmess-tcp` | VMess TCP |
+| `shadowsocks-tcp` | Shadowsocks TCP |
+| `trojan-tcp-reality` | Trojan TCP + Reality |
+| `hysteria2-udp` | Hysteria2 UDP + TLS, Salamander |
+| `custom` | Taýýar daşarky birikme salgysy |
+
+Porty `1` bilen `65535` aralygyndaky san ýa-da `10000–59999` aralygyndan saýlamak üçin `random` hökmünde belläp bolýar. Port noduň üstünde, ugrukdyrma ulanylýan bolsa relay serwerinde hem elýeterli bolmaly.
+
+Reality üçin SNI domenleriň sanawyndan belli bir domen ýa-da `random` hökmünde saýlanýar. WebSocket we Hysteria2 noduň domenini ýa-da IP salgysyny SNI hökmünde ulanýarlar. WebSocket şol salgyny Host hökmünde hem ulanýar. Relay birikmäniň barýan salgysyny üýtgedýär, emma WebSocket-iň Host we SNI bahalary noduň salgysy bolup galýar.
+
+Reality we VLESS WebSocket üçin fingerprint saýlap bolýar. Deslapky baha `firefox`.
+
+### WebSocket we Hysteria2 sertifikatlary
+
+Sertifikatyň we açaryň deslapky ýollary noduň salgysyna görä kesgitlenýär:
+
+| Noduň salgysy | Sertifikat | Şahsy açar |
+| --- | --- | --- |
+| Domen, mysal üçin `second.denpiligrim.ru` | `/root/cert/second.denpiligrim.ru/fullchain.pem` | `/root/cert/second.denpiligrim.ru/privkey.pem` |
+| IPv4 ýa-da IPv6 | `/root/cert/ip/fullchain.pem` | `/root/cert/ip/privkey.pem` |
+
+Ýollary giriş birikmesiniň sazlamalarynda üýtgedip bolýar. Faýllar noduň üstünde bar bolmaly; programma olaryň ýollaryny 3x-ui paneline geçirýär.
+
+## Fon işleri we Žurnal
+
+Giriş birikmelerini döretmek, abunalary we nodlary pozmak, relay-i pozmak, şeýle hem ugrukdyrmany gurmak ýa-da aýyrmak fonda ýerine ýetirilýär. Interfeýs işiň ýagdaýyny görkezýär we onuň gaýtalanyp başladylmagynyň öňüni alýar.
+
+Toparlaýyn rotasiýa abunalary birin-birin işleýär we abunalaryň arasynda nobatdaky beýleki işlere mümkinçilik berýär. Giriş birikmesi döredilende ýa-da pozulanda ýüze çykan wagtlaýyn ýalňyşlyklarda, garaşmak we netijäni barlamak bilen jemi üç gezek synanyşylýar. Bir abunadaky ýalňyşlyk tutuş topary duruzmaýar.
+
+**Žurnal (Журнал)** bölüminde işiň gidişi, netijeler we gaýtadan synanyşyklar görkezilýär. Amal we ýagdaý boýunça süzgüçler bar; her sahypada 20 ýazgy görkezilýär. Žurnal awtomatiki täzelenýär. Tamamlanan ýazgylar 30 güne çenli, iň köp 50 000 waka hökmünde saklanýar.
+
+Programma täzeden işledilende nobat saklanýar. Eýýäm ýerine ýetirilýän iş kesilen hökmünde bellenýär we awtomatiki gaýtalanmaýar: täzeden başlamazdan öň onuň netijesini noduň üstünde barlaň.
+
+Garaşma sazlamalary, nobatyň işleýşi we API üýtgeşmeleri [fon amallarynyň resminamasynda](docs/background-operations.md) rus dilinde düşündirilýär.
+
+## Täzeleme
+
+Skript arkaly gurnalan nusga üçin:
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/update.sh)
 ```
 
-<sup>Gysgaça: soňky üýtgeşmeleri alýar, laýyk konfigurasiýa düzedişlerini ulanýar, konteýnerleri täzeleýär we hyzmaty gaýtadan işledýär.</sup>
+Skript maglumat bazasynyň ätiýaçlyk nusgasyny `/opt/3dp-manager/backups` katalogynda döredýär, migrasiýalaryň ýerine ýetirilmegini açýar we konteýnerleri täzeleýär. `.env` we `docker-compose.yml` faýllaryny saklaň: olar bar bolan gurnamanyň sazlamalaryny öz içine alýar.
 
-## Pozmak
+Özbaşdak ýerleşdirilende maglumat bazasynyň gurluşyny backend bilen bilelikde täzeläň. Fon nobaty üçin `1793300000000-add-operations` migrasiýasy gerek; jikme-jiklikler rus dilindäki [maglumat bazasyny täzelemek bölüminde](docs/background-operations.md#обновление-бд) bar.
 
-Hyzmaty doly pozmak:
+## Aýyrmak
+
+Bu buýruk taslamanyň konteýnerlerini, maglumat bazasynyň volume-yny we `/opt/3dp-manager` katalogyny, şol sanda onuň içindäki ätiýaçlyk nusgalaryny pozýar:
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/delete.sh)
 ```
 
-<sup>Gysgaça: konteýnerleri we konfigurasiýa faýllaryny pozýar, ulgamy gurnamadan öňki ýagdaýa getirýär.</sup>
+## Habarlaşmak
 
----
-
-## Ilkinji Giriş
-
-Administrator login we password gurnamanyň ahyrynda görkezilýär. Olary gaýtadan görmek üçin:
-
-```bash
-grep -E "ADMIN_LOGIN|ADMIN_PASSWORD" /opt/3dp-manager/docker-compose.yml | sed 's/^[ \t]*//; s/^- //'
-```
-
-Web UI gurnawçynyň görkezen salgysy boýunça elýeterlidir, mysal üçin:
-
-- HTTPS üçin `https://example.com:PORT`;
-- HTTP üçin `http://SERVER_IP:PORT`.
-
-Eger `ufw` işjeň bolsa, gurnawçy inbound üçin iş portlaryny açýar: TCP/UDP üçin `443`, `8443` we `10000-60000`.
-
----
-
-## Node-lar
-
-**Node-lar** bölümi bir ýa-da birnäçe `3x-ui` panelini birikdirmäge mümkinçilik berýär.
-
-Her node üçin görkezilýär:
-
-- ady;
-- `3x-ui` panel URL-i;
-- node IP-si;
-- baýdak/ýurt;
-- autentifikasiýa görnüşi: `password` ýa-da `token`;
-- esasy node bolup durýandygy.
-
-URL girizilenden soň programma node IP-sini we ýurduny awtomatiki kesgitlemäge synanyşýar. Baýdak abunanyň içindäki baglanyşyk atlarynda ulanylýar, müşderide serwerleri tapawutlandyrmak aňsat bolýar.
-
-> [!NOTE]
-> Esasy node abunalar, inbound-lar we relay serwerler üçin deslapky baha hökmünde ulanylýar.
-
----
-
-## Abunalar
-
-**Abunalar** bölümi statik abuna URL-lerini we inbound düzümini dolandyrýar.
-
-Her inbound üçin sazlap bolýar:
-
-- baglanyşyk görnüşi;
-- node;
-- relay serwer;
-- baýdak;
-- port: `1-65535` aralygyndaky anyk san ýa-da `random`;
-- SNI: anyk domen ýa-da `random`;
-- `custom` görnüşi üçin taýýar daşarky link.
-
-`hysteria2-udp` üçin şahadatnama we açar ýollaryny aýratyn görkezmek bolýar:
-
-- `certificateFile`, mysal üçin `/root/cert/example.com/fullchain.pem`;
-- `keyFile`, mysal üçin `/root/cert/example.com/privkey.pem`.
-
-Port ýa-da SNI `random` bolsa, baha rotasiýa wagtynda elýeterli aralykdan ýa-da domen whitelist-den saýlanar.
-
----
-
-## Forwarding Hyzmatyny Gurnamak
-
-> [!WARNING]
-> Forwarding hyzmaty aralyk serwerde işleýär
-
-Forwarding hyzmaty aralyk serweriň gelýän portlaryny saýlanan node-a proxy edýär. Web UI-de şeýle serwerler **Relay serwerler** bölüminde sazlanýar we belli bir node bilen baglanyşdyrylyp bilýär.
-
-Relay serwer IP ýa-da domen boýunça goşulyp bilner. Domen görkezilse, backend onuň IP-sini awtomatiki çözmäge synanyşar.
-
-Aralyk serwerde forwarding-i el bilen gurnamak üçin `IP_ADDRESS` ýerine esasy node IP-sini goýuň:
-
-```bash
-sudo ORIGIN_IP="IP_ADDRESS" bash -c "$(curl -sSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/forwarding_install.sh)"
-```
-
-<sup>Gysgaça: forwarding düzgünlerini goşýar.</sup>
-
-## Forwarding-i Pozmak
-
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/forwarding_delete.sh)
-```
-
-<sup>Gysgaça: forwarding düzgünlerini pozýar. Pozlandan soň üýtgeşmeler güýje girmegi üçin firewall-y `ufw reload` bilen täzeden ýükläň we ulgamy `reboot` bilen täzeden işlediň.</sup>
-
----
-
-## Multi-Abunalardan Domenleri Toplamak
-
-Gural abunalardan domenleri çykaryp, generator üçin `whitelist` düzýär.
-
-```bash
-node get_domains.js
-```
-
-<sup>Gysgaça: skripte multi-abuna linkini goşuň we komandany işlediň. Netijede domenleriň sanawy çykýar. Skript üçin `Node.js` gerek.</sup>
-
----
-
-## Bellikler We Häzirki Çäklendirmeler
-
-- Umumy domen sanawy ähli prowaýderlerde işlemeýär, şonuň üçin öz whitelist sanawyňyzy taýýarlamak we ulanmak maslahat berilýär.
-
----
-
-## Goşant
-
-Taslama goşantlaryňyza hoşal bolarys! Goşantçylar üçin ýönekeý proses:
-
-1. GitHub-da repozitoriýany fork ediň.
-2. Manyly at bilen branch dörediň, mysal üçin `feature/add-README` ýa-da `fix/whitelist-load`.
-3. Üýtgeşmeleri giriziň we commit-de gysga düşündiriş ýazyň.
-4. Bar bolsa, lokal barlaglary işlediň.
-5. Branch-i öz fork-uňyza push ediň we esasy repozitoriýa Pull Request dörediň.
-
-<sup>Maslahat: PR-de üýtgeşmeleri, maksady we test ädimlerini ýazyň. Üýtgeşmeler uly bolsa, olary kiçi commit-lere bölüň.</sup>
-
----
-
-## Ara Alyp Maslahatlaşmak
-
-- Telegram: [@denpiligrim_web](https://t.me/denpiligrim_web)
-- Şu repozitoriýanyň Issues bölümi
+[Issues](https://github.com/denpiligrim/3dp-manager/issues) · [Telegram](https://t.me/denpiligrim_web) · [GPL-3.0 ygtyýarnamasy](LICENSE)

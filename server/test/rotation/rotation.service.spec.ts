@@ -527,6 +527,67 @@ describe('RotationService', () => {
   });
 
   describe('rotateSubscription (private)', () => {
+    it.each(['direct', 'manual'])(
+      'uses the target node as WS host/SNI even through a relay with no SNI domains (%s)',
+      async (mode) => {
+        const target = {
+          id: 'node-1',
+          domain: 'node.example.com',
+          ip: '192.0.2.1',
+        };
+        const sub = {
+          id: 'ws-sub',
+          name: 'WS',
+          inbounds: [],
+          relayServer: { nodeId: 'node-1', domain: 'relay.example.com' },
+          inboundsConfig: [
+            {
+              type: 'vless-ws',
+              port: 443,
+              sni: 'random',
+              fingerprint: 'chrome',
+              certificateFile: '/custom/cert.pem',
+              keyFile: '/custom/key.pem',
+            },
+          ],
+        };
+        jest.spyOn(service as any, 'resolveNode').mockResolvedValue(target);
+        mockSubRepo.findOne.mockResolvedValue(sub);
+        mockDomainRepo.find.mockResolvedValue([]);
+        mockXuiService.login.mockResolvedValue(true);
+        mockXuiService.addInbound.mockResolvedValue(101);
+        mockInboundBuilder.buildVlessWs.mockReturnValue({
+          port: 443,
+          protocol: 'vless',
+          settings: '{"clients":[{"id":"client-id"}]}',
+          streamSettings: '{}',
+        });
+        mockInboundBuilder.buildInboundLink.mockReturnValue('vless://link');
+        if (mode === 'manual')
+          expect((await service.rotateSingleSubscription(sub.id)).success).toBe(
+            true,
+          );
+        else
+          expect(await (service as any).rotateSubscription(sub, [], null)).toBe(
+            true,
+          );
+        expect(mockInboundBuilder.buildVlessWs).toHaveBeenCalledWith(
+          expect.objectContaining({
+            sni: 'node.example.com',
+            fingerprint: 'chrome',
+            certificateFile: '/custom/cert.pem',
+            keyFile: '/custom/key.pem',
+          }),
+        );
+        expect(mockInboundBuilder.buildInboundLink).toHaveBeenCalledWith(
+          expect.anything(),
+          'relay.example.com',
+          'client-id',
+          expect.anything(),
+        );
+      },
+    );
+
     it.each([false, true])(
       'prepares a single client per node and reuses it for all inbounds (auto=%s)',
       async (auto) => {

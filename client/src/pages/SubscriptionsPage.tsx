@@ -107,6 +107,8 @@ interface CountryOption {
   emoji: string;
 }
 
+const usesNodeTls = (type: string) => ['hysteria2-udp', 'vless-ws'].includes(type);
+
 const FINGERPRINT_OPTIONS = ['chrome', 'firefox', 'safari', 'ios', 'android', 'edge', '360', 'qq', 'random', 'randomized', 'randomizednoalpn', 'unsafe'];
 
 const CONNECTION_OPTIONS = [
@@ -229,11 +231,12 @@ export default function SubscriptionsPage() {
     }
   };
 
-  const getHysteriaCertDefaults = (nodeId?: string) => {
+  const getNodeCertDefaults = (nodeId?: string) => {
     const address = getNodeAddress(nodeId);
+    const directory = address.includes(':') || /^(?:\d{1,3}\.){3}\d{1,3}$/.test(address) ? 'ip' : address;
     return {
-      certificateFile: address ? `/root/cert/${address}/fullchain.pem` : '',
-      keyFile: address ? `/root/cert/${address}/privkey.pem` : '',
+      certificateFile: address ? `/root/cert/${directory}/fullchain.pem` : '',
+      keyFile: address ? `/root/cert/${directory}/privkey.pem` : '',
     };
   };
 
@@ -261,13 +264,13 @@ export default function SubscriptionsPage() {
       };
     }
 
-    const certDefaults = type === 'hysteria2-udp' ? getHysteriaCertDefaults(nodeId) : {};
+    const certDefaults = usesNodeTls(type) ? getNodeCertDefaults(nodeId) : {};
     return {
       id: generateId(),
       type,
-      fingerprint: 'edge',
+      fingerprint: 'firefox',
       port: 'random',
-      sni: ['hysteria2-udp', 'vless-xhttp-get'].includes(type) ? '' : 'random',
+      sni: ['hysteria2-udp', 'vless-xhttp-get', 'vless-ws'].includes(type) ? '' : 'random',
       link: '',
       nodeId,
       flag: getNodeFlag(nodeId),
@@ -322,13 +325,13 @@ export default function SubscriptionsPage() {
     setInbounds(
       (sub.inboundsConfig?.length ? sub.inboundsConfig : [createInbound()]).map((item) => {
         const nodeId = item.nodeId || getDefaultNodeId();
-        const certDefaults = getHysteriaCertDefaults(nodeId);
+        const certDefaults = getNodeCertDefaults(nodeId);
         return {
           id: generateId(),
           type: item.type || 'vless-tcp-reality',
-          fingerprint: item.fingerprint || 'edge',
+          fingerprint: item.fingerprint || 'firefox',
           port: item.port ? item.port.toString() : 'random',
-          sni: ['hysteria2-udp', 'vless-xhttp-get'].includes(item.type) ? '' : item.sni || 'random',
+          sni: ['hysteria2-udp', 'vless-xhttp-get', 'vless-ws'].includes(item.type) ? '' : item.sni || 'random',
           link: item.link || '',
           nodeId,
           relayServerId: item.relayServerId ? item.relayServerId.toString() : '',
@@ -336,11 +339,11 @@ export default function SubscriptionsPage() {
           name: item.name || '',
           routingProfile: item.routingProfile || '',
           certificateFile:
-            item.type === 'hysteria2-udp'
+            usesNodeTls(item.type)
               ? item.certificateFile || certDefaults.certificateFile
               : undefined,
           keyFile:
-            item.type === 'hysteria2-udp' ? item.keyFile || certDefaults.keyFile : undefined,
+            usesNodeTls(item.type) ? item.keyFile || certDefaults.keyFile : undefined,
         };
       }),
     );
@@ -357,8 +360,8 @@ export default function SubscriptionsPage() {
         if (field === 'nodeId') {
           next.relayServerId = '';
           next.flag = getNodeFlag(value);
-          if (next.type === 'hysteria2-udp') {
-            Object.assign(next, getHysteriaCertDefaults(value));
+          if (usesNodeTls(next.type)) {
+            Object.assign(next, getNodeCertDefaults(value));
           }
         }
 
@@ -371,9 +374,9 @@ export default function SubscriptionsPage() {
           next.keyFile = '';
         }
 
-        if (field === 'type' && value === 'hysteria2-udp') {
+        if (field === 'type' && usesNodeTls(value)) {
           next.sni = '';
-          const defaults = getHysteriaCertDefaults(next.nodeId);
+          const defaults = getNodeCertDefaults(next.nodeId);
           next.certificateFile = next.certificateFile || defaults.certificateFile;
           next.keyFile = next.keyFile || defaults.keyFile;
         }
@@ -491,9 +494,9 @@ export default function SubscriptionsPage() {
           }
           return {
             type: inbound.type,
-            fingerprint: inbound.type.endsWith('-reality') ? inbound.fingerprint || 'edge' : undefined,
+            fingerprint: (inbound.type.endsWith('-reality') || inbound.type === 'vless-ws') ? inbound.fingerprint || 'firefox' : undefined,
             port: inbound.port === 'random' ? 'random' : parseInt(inbound.port, 10),
-            sni: ['hysteria2-udp', 'vless-xhttp-get'].includes(inbound.type) ? undefined : inbound.sni,
+            sni: ['hysteria2-udp', 'vless-xhttp-get', 'vless-ws'].includes(inbound.type) ? undefined : inbound.sni,
             nodeId: inbound.nodeId || undefined,
             relayServerId: inbound.relayServerId
               ? parseInt(inbound.relayServerId, 10)
@@ -501,11 +504,11 @@ export default function SubscriptionsPage() {
             flag: inbound.flag || getNodeFlag(inbound.nodeId) || undefined,
             name: inbound.name?.trim() || undefined,
             certificateFile:
-              inbound.type === 'hysteria2-udp'
+              usesNodeTls(inbound.type)
                 ? inbound.certificateFile?.trim() || undefined
                 : undefined,
             keyFile:
-              inbound.type === 'hysteria2-udp'
+              usesNodeTls(inbound.type)
                 ? inbound.keyFile?.trim() || undefined
                 : undefined,
           };
@@ -898,7 +901,7 @@ export default function SubscriptionsPage() {
                   p: 2,
                   flexWrap: 'nowrap',
                   width: 'fit-content',
-                  minWidth: inbound.type === 'custom' || isRoutingProfile(inbound.type) ? 780 : inbound.type === 'hysteria2-udp' ? 1540 : 1260,
+                  minWidth: inbound.type === 'custom' || isRoutingProfile(inbound.type) ? 780 : usesNodeTls(inbound.type) ? 1540 : 1260,
                   border: 1,
                   borderColor: 'divider',
                   borderRadius: 1,
@@ -950,7 +953,7 @@ export default function SubscriptionsPage() {
                     </FormControl>
                     <TextField size="small" label="Название" value={inbound.name || ''} onChange={(e) => handleInboundChange(inbound.id, 'name', e.target.value)} sx={{ width: 180, flexShrink: 0 }} />
                     <TextField size="small" label="Порт" placeholder="random или порт" value={inbound.port} onChange={(e) => handleInboundChange(inbound.id, 'port', e.target.value)} error={!!portErrors[inbound.id]} helperText={portErrors[inbound.id] || ''} sx={{ width: 150, flexShrink: 0 }} />
-                    {inbound.type === 'hysteria2-udp' && (
+                    {usesNodeTls(inbound.type) && (
                       <>
                         <TextField
                           size="small"
@@ -961,7 +964,7 @@ export default function SubscriptionsPage() {
                           InputProps={{
                             endAdornment: (
                               <InputAdornment position="end">
-                                <Tooltip title="Путь к сертификату должен существовать на выбранной ноде. По умолчанию используется путь Let's Encrypt.">
+                                <Tooltip title="Путь на выбранной ноде: /root/cert/<домен>/fullchain.pem для домена или /root/cert/ip/fullchain.pem для IP.">
                                   <HelpOutline fontSize="small" color="action" />
                                 </Tooltip>
                               </InputAdornment>
@@ -977,7 +980,7 @@ export default function SubscriptionsPage() {
                           InputProps={{
                             endAdornment: (
                               <InputAdornment position="end">
-                                <Tooltip title="Путь к приватному ключу должен существовать на выбранной ноде. По умолчанию используется путь Let's Encrypt.">
+                                <Tooltip title="Путь на выбранной ноде: /root/cert/<домен>/privkey.pem для домена или /root/cert/ip/privkey.pem для IP.">
                                   <HelpOutline fontSize="small" color="action" />
                                 </Tooltip>
                               </InputAdornment>
@@ -986,15 +989,15 @@ export default function SubscriptionsPage() {
                         />
                       </>
                     )}
-                    {inbound.type.endsWith('-reality') && (
+                    {(inbound.type.endsWith('-reality') || inbound.type === 'vless-ws') && (
                       <FormControl size="small" sx={{ width: 180, flexShrink: 0 }}>
-                        <InputLabel>Fingerprint</InputLabel>
-                        <Select value={inbound.fingerprint || 'edge'} label="Fingerprint" onChange={(e) => handleInboundChange(inbound.id, 'fingerprint', e.target.value)}>
+                        <InputLabel id={`fingerprint-${inbound.id}`}>Fingerprint</InputLabel>
+                        <Select labelId={`fingerprint-${inbound.id}`} value={inbound.fingerprint || 'firefox'} label="Fingerprint" onChange={(e) => handleInboundChange(inbound.id, 'fingerprint', e.target.value)}>
                           {FINGERPRINT_OPTIONS.map((value) => <MenuItem disabled={Boolean(pending)} key={value} value={value}>{value}</MenuItem>)}
                         </Select>
                       </FormControl>
                     )}
-                    {!['hysteria2-udp', 'vless-xhttp-get'].includes(inbound.type) && (
+                    {!['hysteria2-udp', 'vless-xhttp-get', 'vless-ws'].includes(inbound.type) && (
                       <FormControl size="small" sx={{ width: 150, flexShrink: 0 }}>
                         <InputLabel>SNI</InputLabel>
                         <Select value={inbound.sni} label="SNI" onChange={(e) => handleInboundChange(inbound.id, 'sni', e.target.value)}>

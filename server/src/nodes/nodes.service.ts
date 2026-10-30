@@ -14,6 +14,7 @@ import { Inbound } from '../inbounds/entities/inbound.entity';
 import * as dns from 'dns/promises';
 import * as net from 'net';
 import { COUNTRIES } from '../settings/countries';
+import { DomainsService } from '../domains/domains.service';
 
 type GeoResult = {
   ip: string;
@@ -37,6 +38,7 @@ export class NodesService {
     @InjectRepository(Inbound)
     private readonly inboundsRepo: Repository<Inbound>,
     private readonly xuiService: XuiService,
+    private readonly domainsService: DomainsService,
   ) {}
 
   findAll() {
@@ -85,15 +87,14 @@ export class NodesService {
       isMain: dto.isMain ?? false,
     });
 
-    if ((await this.nodesRepo.count()) === 0) {
-      node.isMain = true;
-    }
-
-    if (node.isMain) {
-      await this.clearMainNode();
-    }
-
-    return this.nodesRepo.save(node);
+    return this.nodesRepo.manager.transaction(async (manager) => {
+      const repo = manager.getRepository(Node);
+      if ((await repo.count()) === 0) node.isMain = true;
+      if (node.isMain) await this.clearMainNode(undefined, repo);
+      const saved = await repo.save(node);
+      await this.domainsService.addHostDomain(node.domain, manager);
+      return saved;
+    });
   }
 
   async update(id: string, dto: UpdateNodeDto) {
@@ -315,8 +316,8 @@ export class NodesService {
     }
   }
 
-  private async clearMainNode(exceptId?: string) {
-    const qb = this.nodesRepo
+  private async clearMainNode(exceptId?: string, repo = this.nodesRepo) {
+    const qb = repo
       .createQueryBuilder()
       .update(Node)
       .set({ isMain: false })

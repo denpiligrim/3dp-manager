@@ -2,7 +2,7 @@
 
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { BadRequestException } from '@nestjs/common';
 import { DomainsService } from 'src/domains/domains.service';
 import { Domain } from 'src/domains/entities/domain.entity';
@@ -44,6 +44,57 @@ describe('DomainsService', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+  });
+
+  describe('automatic host domains', () => {
+    it.each([
+      undefined,
+      '',
+      '192.0.2.1',
+      '2001:db8::1',
+      '[2001:db8::1]',
+      'localhost',
+    ])('skips IP and empty/non-domain hostnames (%s)', async (host) => {
+      const manager = { getRepository: jest.fn() };
+      await service.addHostDomain(host, manager as unknown as EntityManager);
+      expect(manager.getRepository).not.toHaveBeenCalled();
+    });
+    it.each([false, true])(
+      'normalizes hostnames and preserves existing domains (exists=%s)',
+      async (exists) => {
+        const builder = {
+          where: jest.fn().mockReturnThis(),
+          getOne: jest
+            .fn()
+            .mockResolvedValue(
+              exists ? { name: 'SECOND.example.com', isEnabled: false } : null,
+            ),
+          insert: jest.fn().mockReturnThis(),
+          into: jest.fn().mockReturnThis(),
+          values: jest.fn().mockReturnThis(),
+          orIgnore: jest.fn().mockReturnThis(),
+          execute: jest.fn(),
+        };
+        const hostRepo = { createQueryBuilder: jest.fn(() => builder) };
+        const manager = { getRepository: jest.fn(() => hostRepo) };
+        await service.addHostDomain(
+          'https://Second.Example.COM:8443/panel',
+          manager as unknown as EntityManager,
+        );
+        expect(builder.where).toHaveBeenCalledWith(
+          'LOWER(domain.name) = LOWER(:name)',
+          { name: 'second.example.com' },
+        );
+        if (exists) expect(builder.insert).not.toHaveBeenCalled();
+        else {
+          expect(builder.values).toHaveBeenCalledWith({
+            name: 'second.example.com',
+            isEnabled: true,
+          });
+          expect(builder.orIgnore).toHaveBeenCalledTimes(1);
+        }
+      },
+    );
   });
 
   describe('onModuleInit', () => {

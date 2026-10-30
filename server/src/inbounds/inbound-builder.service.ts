@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs';
+import { isIP } from 'net';
 import {
   XuiInboundRaw,
   XuiInboundSettings,
@@ -12,6 +13,19 @@ import {
 export class InboundBuilderService {
   private flag = process.env.COUNTRY_FLAG ?? '%F0%9F%92%AF';
 
+  private certificatePaths(
+    sni: string,
+    certificateFile?: string,
+    keyFile?: string,
+  ) {
+    const directory = isIP(sni.replace(/^\[|\]$/g, '')) ? 'ip' : sni;
+    return {
+      certificateFile:
+        certificateFile || `/root/cert/${directory}/fullchain.pem`,
+      keyFile: keyFile || `/root/cert/${directory}/privkey.pem`,
+    };
+  }
+
   buildVlessRealityTcp(params: {
     port: number;
     uuid: string;
@@ -20,7 +34,14 @@ export class InboundBuilderService {
     publicKey: string;
     fingerprint?: string;
   }) {
-    const { port, uuid, sni, privateKey, publicKey, fingerprint = 'edge' } = params;
+    const {
+      port,
+      uuid,
+      sni,
+      privateKey,
+      publicKey,
+      fingerprint = 'firefox',
+    } = params;
     return {
       enable: true,
       port,
@@ -85,7 +106,14 @@ export class InboundBuilderService {
     publicKey: string;
     fingerprint?: string;
   }) {
-    const { port, uuid, sni, privateKey, publicKey, fingerprint = 'edge' } = params;
+    const {
+      port,
+      uuid,
+      sni,
+      privateKey,
+      publicKey,
+      fingerprint = 'firefox',
+    } = params;
     return {
       enable: true,
       port,
@@ -233,7 +261,14 @@ export class InboundBuilderService {
     publicKey: string;
     fingerprint?: string;
   }) {
-    const { port, uuid, sni, privateKey, publicKey, fingerprint = 'edge' } = params;
+    const {
+      port,
+      uuid,
+      sni,
+      privateKey,
+      publicKey,
+      fingerprint = 'firefox',
+    } = params;
     return {
       enable: true,
       port,
@@ -291,8 +326,20 @@ export class InboundBuilderService {
     };
   }
 
-  buildVlessWs(params: { port: number; uuid: string; sni: string }) {
-    const { port, uuid, sni } = params;
+  buildVlessWs(params: {
+    port: number;
+    uuid: string;
+    sni: string;
+    fingerprint?: string;
+    certificateFile?: string;
+    keyFile?: string;
+  }) {
+    const { port, uuid, sni, fingerprint = 'firefox' } = params;
+    const certificate = this.certificatePaths(
+      sni,
+      params.certificateFile,
+      params.keyFile,
+    );
     return {
       enable: true,
       port,
@@ -318,11 +365,26 @@ export class InboundBuilderService {
       }),
       streamSettings: JSON.stringify({
         network: 'ws',
-        security: 'none',
+        security: 'tls',
         externalProxy: [],
+        tlsSettings: {
+          serverName: sni,
+          alpn: ['http/1.1'],
+          minVersion: '1.2',
+          maxVersion: '1.3',
+          settings: { fingerprint, allowInsecure: false },
+          certificates: [
+            {
+              ...certificate,
+              buildChain: false,
+              oneTimeLoading: false,
+              usage: 'encipherment',
+            },
+          ],
+        },
         wsSettings: {
           host: sni,
-          path: '/',
+          path: '/ws',
           acceptProxyProtocol: false,
           heartbeatPeriod: 0,
         },
@@ -428,7 +490,14 @@ export class InboundBuilderService {
     publicKey: string;
     fingerprint?: string;
   }) {
-    const { port, uuid, sni, privateKey, publicKey, fingerprint = 'edge' } = params;
+    const {
+      port,
+      uuid,
+      sni,
+      privateKey,
+      publicKey,
+      fingerprint = 'firefox',
+    } = params;
     return {
       enable: true,
       port,
@@ -501,9 +570,11 @@ export class InboundBuilderService {
     keyFile?: string;
   }) {
     const { port, uuid, sni } = params;
-    const certificateFile =
-      params.certificateFile || `/root/cert/${sni}/fullchain.pem`;
-    const keyFile = params.keyFile || `/root/cert/${sni}/privkey.pem`;
+    const { certificateFile, keyFile } = this.certificatePaths(
+      sni,
+      params.certificateFile,
+      params.keyFile,
+    );
     const obfsPassword = crypto.randomBytes(8).toString('hex');
     return {
       enable: true,
@@ -626,11 +697,18 @@ export class InboundBuilderService {
     params.set('encryption', 'none');
     params.set('security', security);
 
+    if (security === 'tls') {
+      const tls = stream.tlsSettings;
+      params.set('sni', tls?.serverName || sni);
+      params.set('fp', tls?.settings?.fingerprint || 'firefox');
+      if (tls?.alpn?.length) params.set('alpn', tls.alpn.join(','));
+    }
+
     if (security === 'reality') {
       const r = stream.realitySettings;
       if (!r) return '';
       params.set('pbk', r.settings?.publicKey || '');
-      params.set('fp', r.settings?.fingerprint || 'edge');
+      params.set('fp', r.settings?.fingerprint || 'firefox');
       params.set('sni', r.serverNames?.[0] || '');
       params.set('sid', r.shortIds?.[0] || '');
       params.set('spx', '/');
@@ -668,20 +746,14 @@ export class InboundBuilderService {
     }
 
     if (network === 'ws') {
-      const ws =
-        (
-          stream as {
-            wsSettings?: { path?: string; headers?: { Host?: string } };
-          }
-        ).wsSettings || {};
-      params.set('path', ws.path || '/');
-      if (ws.headers?.Host) {
-        params.set('host', ws.headers.Host);
-      }
+      const ws = stream.wsSettings;
+      params.set('path', ws?.path || '/');
+      const host = ws?.host || ws?.headers?.Host;
+      if (host) params.set('host', host);
     }
 
     return (
-      `vless://${uuid}@${sni}:${inbound.port}` +
+      `vless://${uuid}@${isIP(sni) === 6 ? `[${sni}]` : sni}:${inbound.port}` +
       `?${params.toString()}` +
       `#${this.flag}%20${encodeURIComponent(inbound.remark || '')}`
     );
@@ -748,7 +820,7 @@ export class InboundBuilderService {
       `?type=tcp` +
       `&security=reality` +
       `&pbk=${pbk}` +
-      `&fp=${encodeURIComponent(reality.settings?.fingerprint || 'edge')}` +
+      `&fp=${encodeURIComponent(reality.settings?.fingerprint || 'firefox')}` +
       `&sni=${SNI}` +
       `&sid=${sid}` +
       `&spx=${spx}` +

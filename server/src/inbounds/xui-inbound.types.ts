@@ -48,9 +48,15 @@ export interface XuiStreamSettings {
   };
   wsSettings?: {
     path: string;
+    host?: string;
     headers?: {
       Host?: string;
     };
+  };
+  tlsSettings?: {
+    serverName?: string;
+    alpn?: string[];
+    settings?: { fingerprint?: string; allowInsecure?: boolean };
   };
   grpcSettings?: {
     serviceName: string;

@@ -9,6 +9,7 @@ import { Subscription } from '../subscriptions/entities/subscription.entity';
 import { CreateTunnelDto } from './dto/create-tunnel.dto';
 import * as net from 'net';
 import * as dns from 'dns/promises';
+import { DomainsService } from '../domains/domains.service';
 
 @Injectable()
 export class TunnelsService {
@@ -21,6 +22,7 @@ export class TunnelsService {
     @InjectRepository(Subscription)
     private subscriptionRepo: Repository<Subscription>,
     private sshService: SshService,
+    private readonly domainsService: DomainsService,
   ) {}
 
   async create(createTunnelDto: CreateTunnelDto) {
@@ -47,7 +49,11 @@ export class TunnelsService {
     }
 
     const tunnel = this.tunnelRepo.create(tunnelPayload);
-    return this.tunnelRepo.save(tunnel);
+    return this.tunnelRepo.manager.transaction(async (manager) => {
+      const saved = await manager.getRepository(Tunnel).save(tunnel);
+      await this.domainsService.addHostDomain(domain, manager);
+      return saved;
+    });
   }
 
   async findAll() {
@@ -104,7 +110,9 @@ export class TunnelsService {
     const targetNode = tunnel.nodeId
       ? await this.nodeRepo.findOne({ where: { id: tunnel.nodeId } })
       : await this.nodeRepo.findOne({ where: { isMain: true } });
-    const hostSetting = await this.settingRepo.findOne({ where: { key: 'xui_ip' } });
+    const hostSetting = await this.settingRepo.findOne({
+      where: { key: 'xui_ip' },
+    });
 
     if (!targetNode && (!hostSetting || !hostSetting.value)) {
       throw new HttpException(

@@ -276,6 +276,7 @@ export class RotationService implements OnModuleInit {
             'incy-routing',
             'hysteria2-udp',
             'vless-xhttp-get',
+            'vless-ws',
           ].includes(config.type || ''),
       )
     )
@@ -423,6 +424,8 @@ export class RotationService implements OnModuleInit {
           });
           await saveCreated(newInbound);
           continue;
+        } else if (type === 'vless-ws') {
+          sni = this.getNodeAddress(targetNode) || serverAddress;
         } else if (type !== 'vless-xhttp-get') {
           sni = config.sni === 'random' ? this.pickDomain(domains) : config.sni;
         }
@@ -510,7 +513,7 @@ export class RotationService implements OnModuleInit {
               uuid,
               sni,
               ...keys,
-              fingerprint: config.fingerprint ?? 'edge',
+              fingerprint: config.fingerprint ?? 'firefox',
             });
             break;
           case 'vless-xhttp-reality':
@@ -519,7 +522,7 @@ export class RotationService implements OnModuleInit {
               uuid,
               sni,
               ...keys,
-              fingerprint: config.fingerprint ?? 'edge',
+              fingerprint: config.fingerprint ?? 'firefox',
             });
             break;
           case 'vless-xhttp-get':
@@ -531,11 +534,18 @@ export class RotationService implements OnModuleInit {
               uuid,
               sni,
               ...keys,
-              fingerprint: config.fingerprint ?? 'edge',
+              fingerprint: config.fingerprint ?? 'firefox',
             });
             break;
           case 'vless-ws':
-            xuiConfig = this.inboundBuilder.buildVlessWs({ port, uuid, sni });
+            xuiConfig = this.inboundBuilder.buildVlessWs({
+              port,
+              uuid,
+              sni,
+              fingerprint: config.fingerprint ?? 'firefox',
+              certificateFile: config.certificateFile,
+              keyFile: config.keyFile,
+            });
             break;
           case 'vmess-tcp':
             xuiConfig = this.inboundBuilder.buildVmessTcp({ port, uuid });
@@ -549,7 +559,7 @@ export class RotationService implements OnModuleInit {
               uuid,
               sni,
               ...keys,
-              fingerprint: config.fingerprint ?? 'edge',
+              fingerprint: config.fingerprint ?? 'firefox',
             });
             break;
           default:
@@ -725,6 +735,7 @@ export class RotationService implements OnModuleInit {
             ![
               'hysteria2-udp',
               'vless-xhttp-get',
+              'vless-ws',
               'custom',
               'happ-routing',
               'incy-routing',
