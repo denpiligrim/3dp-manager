@@ -235,6 +235,42 @@ describe('RotationService', () => {
   });
 
   describe('performRotation', () => {
+    it.each(['scheduled', 'manual'])(
+      'allows XHTTP GET rotation without SNI domains (%s)',
+      async (mode) => {
+        const sub = {
+          id: 'get-sub',
+          uuid: 'get-uuid',
+          isEnabled: true,
+          isAutoRotationEnabled: true,
+          inbounds: [],
+          inboundsConfig: [{ type: 'vless-xhttp-get', port: 2053 }],
+        };
+        mockXuiService.login.mockResolvedValue(true);
+        mockSubRepo.find.mockResolvedValue([sub]);
+        mockSubRepo.findOne.mockResolvedValue(sub);
+        mockDomainRepo.find.mockResolvedValue([]);
+        const rotate = jest
+          .spyOn(service as any, 'rotateSubscription')
+          .mockResolvedValue(true);
+        try {
+          const result =
+            mode === 'manual'
+              ? await service.rotateSingleSubscription(sub.id)
+              : await service.performRotation();
+          expect(result.success).toBe(true);
+          expect(rotate).toHaveBeenCalledWith(
+            sub,
+            [],
+            undefined,
+            false,
+          );
+        } finally {
+          rotate.mockRestore();
+        }
+      },
+    );
+
     it('должен вернуть ошибку, если не удалось войти в 3x-ui', async () => {
       mockXuiService.login.mockResolvedValue(false);
 

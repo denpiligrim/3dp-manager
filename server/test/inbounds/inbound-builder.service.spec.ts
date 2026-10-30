@@ -33,6 +33,52 @@ describe('InboundBuilderService', () => {
     jest.clearAllMocks();
   });
 
+  it('preserves the XHTTP GET transport settings in direct and relay subscription links', () => {
+    const inbound = service.buildVlessXhttpGet({
+      port: 2053,
+      uuid: 'test-uuid',
+    });
+    const stream = JSON.parse(inbound.streamSettings);
+    expect(stream.security).toBe('none');
+    expect(stream.realitySettings).toBeUndefined();
+    expect(JSON.parse(inbound.settings).clients[0]).toMatchObject({
+      id: 'test-uuid',
+      flow: '',
+      enable: true,
+    });
+    expect(JSON.parse(inbound.sniffing).enabled).toBe(true);
+
+    for (const address of ['node.example.com', 'relay.example.com']) {
+      const link = new URL(
+        service.buildInboundLink(inbound, address, 'test-uuid', ''),
+      );
+      expect(link.hostname).toBe(address);
+      expect(link.port).toBe('2053');
+      expect(link.searchParams.get('security')).toBe('none');
+      expect(link.searchParams.get('path')).toBe(
+        '/static/media/live/segment9.ts',
+      );
+      expect(link.searchParams.get('mode')).toBe('packet-up');
+      expect(link.searchParams.get('host')).toBe('');
+      const extra = JSON.parse(link.searchParams.get('extra')!);
+      expect(extra).toMatchObject({
+        uplinkHTTPMethod: 'GET',
+        sessionIDPlacement: 'path',
+        sessionIDLength: '16-24',
+        xPaddingPlacement: 'query',
+        scMinPostsIntervalMs: '50-150',
+      });
+      expect({
+        path: link.searchParams.get('path'),
+        host: link.searchParams.get('host'),
+        mode: link.searchParams.get('mode'),
+        ...extra,
+      }).toEqual(stream.xhttpSettings);
+      expect(extra.enableXmux).toBeUndefined();
+      expect(link.searchParams.has('pbk')).toBe(false);
+    }
+  });
+
   it.each([
     [
       'VLESS Reality TCP',

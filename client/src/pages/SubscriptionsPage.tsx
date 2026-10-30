@@ -108,6 +108,7 @@ interface CountryOption {
 const CONNECTION_OPTIONS = [
   'vless-tcp-reality',
   'vless-xhttp-reality',
+  'vless-xhttp-get',
   'vless-grpc-reality',
   'vless-ws',
   'hysteria2-udp',
@@ -260,7 +261,7 @@ export default function SubscriptionsPage() {
       id: generateId(),
       type,
       port: 'random',
-      sni: type === 'hysteria2-udp' ? '' : 'random',
+      sni: ['hysteria2-udp', 'vless-xhttp-get'].includes(type) ? '' : 'random',
       link: '',
       nodeId,
       flag: getNodeFlag(nodeId),
@@ -320,7 +321,7 @@ export default function SubscriptionsPage() {
           id: generateId(),
           type: item.type || 'vless-tcp-reality',
           port: item.port ? item.port.toString() : 'random',
-          sni: item.type === 'hysteria2-udp' ? '' : item.sni || 'random',
+          sni: ['hysteria2-udp', 'vless-xhttp-get'].includes(item.type) ? '' : item.sni || 'random',
           link: item.link || '',
           nodeId,
           relayServerId: item.relayServerId ? item.relayServerId.toString() : '',
@@ -482,7 +483,7 @@ export default function SubscriptionsPage() {
         return {
           type: inbound.type,
           port: inbound.port === 'random' ? 'random' : parseInt(inbound.port, 10),
-          sni: inbound.type === 'hysteria2-udp' ? undefined : inbound.sni,
+          sni: ['hysteria2-udp', 'vless-xhttp-get'].includes(inbound.type) ? undefined : inbound.sni,
           nodeId: inbound.nodeId || undefined,
           relayServerId: inbound.relayServerId
             ? parseInt(inbound.relayServerId, 10)
@@ -696,6 +697,7 @@ export default function SubscriptionsPage() {
 
   const handleGenerateCreatedSubscription = async () => {
     if (!createdSubscriptionId) return;
+    setForceRotation(false);
     const url = forceRotation
       ? `/rotation/rotate-one/${createdSubscriptionId}?force=true`
       : `/rotation/rotate-one/${createdSubscriptionId}`;
@@ -706,7 +708,6 @@ export default function SubscriptionsPage() {
       message: res.data?.message || 'Ротация выполнена',
     });
     setCreatedSubscriptionId(null);
-    setForceRotation(false);
     loadSubs();
   };
 
@@ -940,7 +941,7 @@ export default function SubscriptionsPage() {
                         />
                       </>
                     )}
-                    {inbound.type !== 'hysteria2-udp' && (
+                    {!['hysteria2-udp', 'vless-xhttp-get'].includes(inbound.type) && (
                       <FormControl size="small" sx={{ width: 150, flexShrink: 0 }}>
                         <InputLabel>SNI</InputLabel>
                         <Select value={inbound.sni} label="SNI" onChange={(e) => handleInboundChange(inbound.id, 'sni', e.target.value)}>

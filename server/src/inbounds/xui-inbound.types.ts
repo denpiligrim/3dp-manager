@@ -57,6 +57,7 @@ export interface XuiStreamSettings {
     authority?: string;
   };
   xhttpSettings?: {
+    [key: string]: unknown;
     path: string;
     host?: string;
     mode?: string;

@@ -153,7 +153,16 @@ export class RotationService implements OnModuleInit {
     }
 
     const domains = await this.domainRepo.find({ where: { isEnabled: true } });
-    if (domains.length === 0) {
+    if (
+      domains.length === 0 &&
+      subscriptions.some(
+        (sub) =>
+          !sub.inboundsConfig?.length ||
+          sub.inboundsConfig.some(
+            (config) => config.type !== 'vless-xhttp-get',
+          ),
+      )
+    ) {
       this.logger.warn('Список доменов пуст! Ротация невозможна.');
       return { success: false, message: 'Список доменов пуст!' };
     }
@@ -282,7 +291,7 @@ export class RotationService implements OnModuleInit {
         });
         await this.inboundRepo.save(newInbound);
         continue;
-      } else {
+      } else if (type !== 'vless-xhttp-get') {
         sni = config.sni === 'random' ? this.pickDomain(domains) : config.sni;
       }
 
@@ -378,6 +387,9 @@ export class RotationService implements OnModuleInit {
             sni,
             ...keys,
           });
+          break;
+        case 'vless-xhttp-get':
+          xuiConfig = this.inboundBuilder.buildVlessXhttpGet({ port, uuid });
           break;
         case 'vless-grpc-reality':
           xuiConfig = this.inboundBuilder.buildVlessRealityGrpc({
@@ -548,7 +560,11 @@ export class RotationService implements OnModuleInit {
     }
 
     const domains = await this.domainRepo.find({ where: { isEnabled: true } });
-    if (domains.length === 0) {
+    if (
+      domains.length === 0 &&
+      (!sub.inboundsConfig?.length ||
+        sub.inboundsConfig.some((config) => config.type !== 'vless-xhttp-get'))
+    ) {
       this.logger.warn('Список доменов пуст! Ротация невозможна.');
       return { success: false, message: 'Список доменов пуст!' };
     }
