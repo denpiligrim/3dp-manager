@@ -12,6 +12,7 @@ import { AxiosInterceptor } from './auth/AxiosInterceptor';
 import PublicRoute from './auth/PublicRoute';
 import TunnelsPage from './pages/TunnelsPage';
 import NodesPage from './pages/NodesPage';
+import TaskNotification from './components/TaskNotification';
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
       <ThemeProvider>
         <BrowserRouter>
         <AxiosInterceptor />
+        <TaskNotification />
           <Routes>
             <Route element={<PublicRoute />}>
               <Route path="/login" element={<LoginPage />} />

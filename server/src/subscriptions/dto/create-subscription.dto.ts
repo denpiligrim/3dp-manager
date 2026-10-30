@@ -1,5 +1,6 @@
 import {
   IsString,
+  IsIn,
   MaxLength,
   IsUrl,
   IsArray,
@@ -55,6 +56,10 @@ export class InboundConfigDto {
   @IsString()
   @IsOptional()
   sni?: string;
+
+  @IsOptional()
+  @IsIn(['chrome', 'firefox', 'safari', 'ios', 'android', 'edge', '360', 'qq', 'random', 'randomized', 'randomizednoalpn', 'unsafe'])
+  fingerprint?: string;
 
   @IsString()
   @IsOptional()

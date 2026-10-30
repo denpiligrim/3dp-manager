@@ -1,3 +1,4 @@
+import { runTask, usePendingTask } from '../utils/pendingTask';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Box, TextField, Button, Typography, List, ListItem, ListItemText, IconButton, Paper, TablePagination, useTheme, useMediaQuery, Alert, Stack, CircularProgress, Divider, Link as MuiLink, Accordion, AccordionSummary, AccordionDetails, Snackbar, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import { Delete, Add, UploadFile, Remove, ExpandMore, Download } from '@mui/icons-material';
@@ -47,6 +48,7 @@ interface ScanStatusResponse {
 const SCAN_STORAGE_KEY = 'domains_scan_state_v1';
 
 export default function DomainsPage() {
+  const { pending } = usePendingTask();
   const [domains, setDomains] = useState<Domain[]>([]);
   const [newDomain, setNewDomain] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -125,7 +127,7 @@ export default function DomainsPage() {
     try {
       const settingsRes = await api.get('/settings');
       Logger.debug('Domains page: Settings response', 'Domains', settingsRes.data);
-      
+
       settingsCandidates = collectAddrCandidatesFromSettings(settingsRes.data);
       Logger.debug('Domains page: Collected address candidates from settings', 'Domains', {
         candidates: settingsCandidates,
@@ -133,13 +135,13 @@ export default function DomainsPage() {
         xui_host: settingsRes.data?.xui_host,
         xui_url: settingsRes.data?.xui_url
       });
-      
+
       const publicFromSettings = settingsCandidates.find((c) => !isLoopbackHost(c));
       Logger.debug('Domains page: Looking for public address', 'Domains', {
         publicFromSettings,
         allCandidates: settingsCandidates
       });
-      
+
       if (publicFromSettings) {
         return publicFromSettings;
       }
@@ -153,7 +155,7 @@ export default function DomainsPage() {
       runtimeHost,
       isLoopback: isLoopbackHost(runtimeHost)
     });
-    
+
     // Если настройки пустые и мы на localhost — предлагаем localhost с предупреждением
     // Это позволяет пользователю начать работу и затем изменить на правильный IP
     if (runtimeHost) {
@@ -388,19 +390,25 @@ export default function DomainsPage() {
   };
 
   const handleAdd = async () => {
-    if (!newDomain) return;
-    Logger.debug(`Adding domain: ${newDomain}`, 'Domains');
-    await api.post('/domains', { name: newDomain });
-    Logger.debug(`Added domain: ${newDomain}`, 'Domains');
-    setNewDomain('');
-    loadDomains();
+    return runTask("Выполняется добавление домена", async () => {
+      setSnackbar((prev) => ({ ...prev, open: false }));
+      if (!newDomain) return;
+      Logger.debug(`Adding domain: ${newDomain}`, 'Domains');
+      await api.post('/domains', { name: newDomain });
+      Logger.debug(`Added domain: ${newDomain}`, 'Domains');
+      setNewDomain('');
+      await loadDomains();
+    });
   };
 
   const handleDelete = async (id: number) => {
-    Logger.debug(`Deleting domain ID: ${id}`, 'Domains');
-    await api.delete(`/domains/${id}`);
-    Logger.debug(`Deleted domain ID: ${id}`, 'Domains');
-    loadDomains();
+    return runTask("Выполняется удаление домена", async () => {
+      setSnackbar((prev) => ({ ...prev, open: false }));
+      Logger.debug(`Deleting domain ID: ${id}`, 'Domains');
+      await api.delete(`/domains/${id}`);
+      Logger.debug(`Deleted domain ID: ${id}`, 'Domains');
+      await loadDomains();
+    });
   };
 
   const handleDeleteAll = async () => {
@@ -408,16 +416,21 @@ export default function DomainsPage() {
       open: true,
       title: 'ВНИМАНИЕ! Вы действительно хотите удалить ВСЕ домены из белого списка?',
       onConfirm: async () => {
-        try {
-          Logger.debug('Deleting all domains', 'Domains');
-          await api.delete('/domains/all');
-          Logger.debug('All domains deleted', 'Domains');
-          loadDomains();
-          setSnackbar({ open: true, type: 'success', message: 'Все домены удалены' });
-        } catch {
-          Logger.error('Delete all failed', 'Domains');
-          setSnackbar({ open: true, type: 'error', message: 'Ошибка удаления' });
-        }
+        return runTask("Выполняется удаление всех доменов", async () => {
+          setSnackbar((prev) => ({ ...prev, open: false }));
+          setConfirmDialog((prev) => ({ ...prev, open: false }));
+
+          try {
+            Logger.debug('Deleting all domains', 'Domains');
+            await api.delete('/domains/all');
+            Logger.debug('All domains deleted', 'Domains');
+            await loadDomains();
+            setSnackbar({ open: true, type: 'success', message: 'Все домены удалены' });
+          } catch {
+            Logger.error('Delete all failed', 'Domains');
+            setSnackbar({ open: true, type: 'error', message: 'Ошибка удаления' });
+          }
+        });
       }
     });
   };
@@ -428,97 +441,106 @@ export default function DomainsPage() {
 
     const reader = new FileReader();
     reader.onload = async (e) => {
-      const text = e.target?.result as string;
-      if (!text) return;
+      return runTask('Выполняется импорт доменов из файла', async () => {
+        setSnackbar((prev) => ({ ...prev, open: false }));
+        const text = e.target?.result as string;
+        if (!text) return;
 
-      const lines = text.split(/\r?\n/);
+        const lines = text.split(/\r?\n/);
 
-      try {
-        const { data } = await api.post('/domains/upload', { domains: lines });
-        setSnackbar({ open: true, type: 'success', message: `Успешно добавлено доменов: ${data.count}` });
-        loadDomains();
-      } catch {
-        setSnackbar({ open: true, type: 'error', message: 'Ошибка при загрузке списка' });
-      } finally {
-        if (fileInputRef.current) fileInputRef.current.value = '';
-      }
+        try {
+          const { data } = await api.post('/domains/upload', { domains: lines });
+          setSnackbar({ open: true, type: 'success', message: `Успешно добавлено доменов: ${data.count}` });
+          await loadDomains();
+        } catch {
+          setSnackbar({ open: true, type: 'error', message: 'Ошибка при загрузке списка' });
+        } finally {
+          if (fileInputRef.current) fileInputRef.current.value = '';
+        }
+      });
     };
     reader.readAsText(file);
   };
 
   const handleStartScan = async () => {
-    if (!scanAddr.trim()) {
-      setSnackbar({ open: true, type: 'error', message: 'Укажите IP/домен для сканирования' });
-      return;
-    }
+    return runTask("Выполняется запуск сканирования", async () => {
+      setSnackbar((prev) => ({ ...prev, open: false }));
+      if (!scanAddr.trim()) {
+        setSnackbar({ open: true, type: 'error', message: 'Укажите IP/домен для сканирования' });
+        return;
+      }
 
-    const effectiveScanSeconds = clampInteger(scanSeconds, 120, 10, 600);
-    const effectiveThread = clampInteger(scanThread, 2, 1, 20);
-    const effectiveTimeout = clampInteger(scanTimeout, 5, 1, 20);
-    let keepScanning = false;
+      const effectiveScanSeconds = clampInteger(scanSeconds, 120, 10, 600);
+      const effectiveThread = clampInteger(scanThread, 2, 1, 20);
+      const effectiveTimeout = clampInteger(scanTimeout, 5, 1, 20);
+      let keepScanning = false;
 
-    try {
-      Logger.debug(`Starting scan: addr=${scanAddr.trim()}, seconds=${effectiveScanSeconds}, threads=${effectiveThread}, timeout=${effectiveTimeout}`, 'Scanner');
-      setIsScanning(true);
-      setScanError('');
-      setScanResult(null);
-      setScanStatus(null);
-      setActiveScanRunId(null);
+      try {
+        Logger.debug(`Starting scan: addr=${scanAddr.trim()}, seconds=${effectiveScanSeconds}, threads=${effectiveThread}, timeout=${effectiveTimeout}`, 'Scanner');
+        setIsScanning(true);
+        setScanError('');
+        setScanResult(null);
+        setScanStatus(null);
+        setActiveScanRunId(null);
 
-      const { data } = await api.post('/domains/scan/start', {
-        addr: scanAddr.trim(),
-        scanSeconds: effectiveScanSeconds,
-        thread: effectiveThread,
-        timeout: effectiveTimeout,
-      });
+        const { data } = await api.post('/domains/scan/start', {
+          addr: scanAddr.trim(),
+          scanSeconds: effectiveScanSeconds,
+          thread: effectiveThread,
+          timeout: effectiveTimeout,
+        });
 
-      Logger.debug(`Scan started: runId=${data.runId}, found=${data.foundCount}`, 'Scanner');
-      setScanResult(data);
-      setScanCandidates(data.domains || []);
-      setActiveScanRunId(data.runId || null);
-      await fetchScanStatus();
-    } catch (e) {
-      const message = getApiErrorMessage(e, 'Ошибка запуска сканера');
-      Logger.error(`Start error: ${message}`, 'Scanner');
-      setScanError(message);
+        Logger.debug(`Scan started: runId=${data.runId}, found=${data.foundCount}`, 'Scanner');
+        setScanResult(data);
+        setScanCandidates(data.domains || []);
+        setActiveScanRunId(data.runId || null);
+        await fetchScanStatus();
+      } catch (e) {
+        const message = getApiErrorMessage(e, 'Ошибка запуска сканера');
+        Logger.error(`Start error: ${message}`, 'Scanner');
+        setScanError(message);
 
-      const status = getApiErrorStatus(e);
-      if (status === 429) {
-        try {
-          const status = await fetchScanStatus();
-          if (status.running) {
-            keepScanning = true;
-            setIsScanning(true);
-            setActiveScanRunId(status.runId);
-            setScanError('Скан уже выполняется. Подключились к текущему запуску.');
-            Logger.debug('Connected to existing scan session', 'Scanner');
+        const status = getApiErrorStatus(e);
+        if (status === 429) {
+          try {
+            const status = await fetchScanStatus();
+            if (status.running) {
+              keepScanning = true;
+              setIsScanning(true);
+              setActiveScanRunId(status.runId);
+              setScanError('Скан уже выполняется. Подключились к текущему запуску.');
+              Logger.debug('Connected to existing scan session', 'Scanner');
+            }
+          } catch (statusErr) {
+            Logger.error('Failed to fetch scan status on 429', 'Scanner', statusErr);
           }
-        } catch (statusErr) {
-          Logger.error('Failed to fetch scan status on 429', 'Scanner', statusErr);
+        }
+      } finally {
+        if (!keepScanning) {
+          setIsScanning(false);
+          setActiveScanRunId(null);
         }
       }
-    } finally {
-      if (!keepScanning) {
-        setIsScanning(false);
-        setActiveScanRunId(null);
-      }
-    }
+    });
   };
 
   const handleImportScannedDomains = async () => {
-    const found = scanCandidates;
-    if (found.length === 0) return;
+    return runTask("Выполняется импорт доменов", async () => {
+      setSnackbar((prev) => ({ ...prev, open: false }));
+      const found = scanCandidates;
+      if (found.length === 0) return;
 
-    try {
-      Logger.debug(`Importing ${found.length} scanned domains`, 'Domains');
-      const { data } = await api.post('/domains/upload', { domains: found });
-      Logger.debug(`Imported ${data.count} new domains`, 'Domains');
-      setSnackbar({ open: true, type: 'success', message: `Скан завершен. Добавлено новых доменов: ${data.count}` });
-      loadDomains();
-    } catch {
-      Logger.error('Import failed', 'Domains');
-      setSnackbar({ open: true, type: 'error', message: 'Ошибка импорта найденных доменов' });
-    }
+      try {
+        Logger.debug(`Importing ${found.length} scanned domains`, 'Domains');
+        const { data } = await api.post('/domains/upload', { domains: found });
+        Logger.debug(`Imported ${data.count} new domains`, 'Domains');
+        setSnackbar({ open: true, type: 'success', message: `Скан завершен. Добавлено новых доменов: ${data.count}` });
+        await loadDomains();
+      } catch {
+        Logger.error('Import failed', 'Domains');
+        setSnackbar({ open: true, type: 'error', message: 'Ошибка импорта найденных доменов' });
+      }
+    });
   };
 
   const handleRemoveScannedDomain = (domain: string) => {
@@ -526,14 +548,17 @@ export default function DomainsPage() {
   };
 
   const handleClearScannedDomains = async () => {
-    setScanCandidates([]);
-    setScanResult(null);
-    setScanStatus(null);
-    setActiveScanRunId(null);
-    setScanAddr('');
+    return runTask("Выполняется очистка результатов сканирования", async () => {
+      setSnackbar((prev) => ({ ...prev, open: false }));
+      setScanCandidates([]);
+      setScanResult(null);
+      setScanStatus(null);
+      setActiveScanRunId(null);
+      setScanAddr('');
 
-    const suggestedAddr = await resolveSuggestedScanAddr({ allowLoopbackFallback: true });
-    setScanAddr(suggestedAddr);
+      const suggestedAddr = await resolveSuggestedScanAddr({ allowLoopbackFallback: true });
+      setScanAddr(suggestedAddr);
+    });
   };
 
   const downloadDomainsAsTxt = (filename: string, domainNames: string[]) => {
@@ -633,13 +658,13 @@ export default function DomainsPage() {
         </Stack>
 
         <Stack direction='row' spacing={1} sx={{ mt: 2, flexWrap: 'wrap' }}>
-          <Button variant='contained' onClick={handleStartScan} disabled={isScanning}>
+          <Button variant='contained' onClick={handleStartScan} disabled={Boolean(pending) || (isScanning)}>
             {isScanning ? 'Сканирование...' : 'Сканировать'}
           </Button>
           <Button
             variant='outlined'
             onClick={handleImportScannedDomains}
-            disabled={!scanResult || scanCandidates.length === 0 || isScanning}
+            disabled={Boolean(pending) || (!scanResult || scanCandidates.length === 0 || isScanning)}
           >
             Добавить найденные в список
           </Button>
@@ -648,7 +673,7 @@ export default function DomainsPage() {
               variant='outlined'
               startIcon={<Download />}
               onClick={handleExportScannedDomains}
-              disabled={isScanning}
+              disabled={Boolean(pending) || (isScanning)}
             >
               Экспорт найденных
             </Button>
@@ -657,7 +682,7 @@ export default function DomainsPage() {
             variant='text'
             color='error'
             onClick={handleClearScannedDomains}
-            disabled={scanCandidates.length === 0 && !scanResult}
+            disabled={Boolean(pending) || (scanCandidates.length === 0 && !scanResult)}
           >
             Очистить предварительный
           </Button>
@@ -707,7 +732,7 @@ export default function DomainsPage() {
                       },
                     }}
                     secondaryAction={
-                      <IconButton edge='end' onClick={() => handleRemoveScannedDomain(d)}>
+                      <IconButton disabled={Boolean(pending)} edge='end' onClick={() => handleRemoveScannedDomain(d)}>
                         <Delete />
                       </IconButton>
                     }
@@ -749,12 +774,12 @@ export default function DomainsPage() {
           />
           {isMobile ? (
             <>
-              <IconButton edge="end" onClick={() => fileInputRef.current?.click()}><UploadFile /></IconButton>
-              <IconButton edge="end" onClick={handleAdd}><Add /></IconButton>
+              <IconButton disabled={Boolean(pending)} edge="end" onClick={() => fileInputRef.current?.click()}><UploadFile /></IconButton>
+              <IconButton disabled={Boolean(pending)} edge="end" onClick={handleAdd}><Add /></IconButton>
             </>
           ) : (
             <>
-              <Button
+              <Button disabled={Boolean(pending)}
                 variant="outlined"
                 startIcon={<UploadFile />}
                 sx={{ width: '170px' }}
@@ -762,7 +787,7 @@ export default function DomainsPage() {
               >
                 Из файла
               </Button>
-              <Button variant="contained" sx={{ width: '160px' }} startIcon={<Add />} onClick={handleAdd}>Добавить</Button>
+              <Button disabled={Boolean(pending)} variant="contained" sx={{ width: '160px' }} startIcon={<Add />} onClick={handleAdd}>Добавить</Button>
             </>
           )}
           <input
@@ -777,7 +802,7 @@ export default function DomainsPage() {
 
         {domains.length > 0 && (
           <Box sx={{ display: 'flex', justifyContent: 'end', width: '100%', mt: 1, gap: 1, flexWrap: 'wrap' }}>
-            <Button
+            <Button disabled={Boolean(pending)}
               variant="outlined"
               size='small'
               startIcon={<Download />}
@@ -785,7 +810,7 @@ export default function DomainsPage() {
             >
               Экспорт списка
             </Button>
-            <Button
+            <Button disabled={Boolean(pending)}
               variant="text"
               color="error"
               size='small'
@@ -810,7 +835,7 @@ export default function DomainsPage() {
                   },
                 }}
                 secondaryAction={
-                  <IconButton edge="end" onClick={() => handleDelete(d.id)}><Delete /></IconButton>
+                  <IconButton disabled={Boolean(pending)} edge="end" onClick={() => handleDelete(d.id)}><Delete /></IconButton>
                 }
               >
                 <ListItemText
@@ -839,7 +864,7 @@ export default function DomainsPage() {
       </Paper>
 
       <Snackbar
-        open={snackbar.open}
+        open={snackbar.open && !pending}
         autoHideDuration={6000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
@@ -859,10 +884,10 @@ export default function DomainsPage() {
           <Typography>{confirmDialog.title}</Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmDialog({ ...confirmDialog, open: false })}>
+          <Button disabled={Boolean(pending)} onClick={() => setConfirmDialog({ ...confirmDialog, open: false })}>
             Отмена
           </Button>
-          <Button
+          <Button disabled={Boolean(pending)}
             onClick={() => {
               setConfirmDialog({ ...confirmDialog, open: false });
               confirmDialog.onConfirm();

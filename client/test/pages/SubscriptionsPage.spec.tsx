@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
 import SubscriptionsPage from '../../src/pages/SubscriptionsPage'
 import { ThemeProvider } from '../../src/ThemeContext'
 import { AuthProvider } from '../../src/auth/AuthContext'
+import TaskNotification from '../../src/components/TaskNotification'
 
 const mockGet = vi.fn()
 const mockPost = vi.fn()
@@ -621,6 +622,29 @@ describe('SubscriptionsPage', () => {
   })
 
   describe('Удаление подписки', () => {
+    it('closes confirmation and blocks repeat actions until deletion finishes', async () => {
+      let finish!: (value: unknown) => void
+      mockDelete.mockReset()
+      mockDelete.mockReturnValue(new Promise((resolve) => { finish = resolve }))
+      setupMockGet({ subscriptions: [{ id: '1', name: 'Test Sub', uuid: 'abc', inbounds: [] }] })
+      renderSubscriptionsPage()
+      render(<TaskNotification />)
+      fireEvent.click(await screen.findByTestId('icon-MoreVert'))
+      fireEvent.click(await screen.findByText('Удалить'))
+      const confirm = screen.getByRole('button', { name: 'Удалить', exact: true })
+      try {
+        fireEvent.click(confirm)
+        fireEvent.click(confirm)
+        expect(mockDelete).toHaveBeenCalledTimes(1)
+        expect(await screen.findByRole('status')).toHaveTextContent('Выполняется удаление подписки')
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+        expect(screen.getByText('Создать').closest('button')).toBeDisabled()
+      } finally {
+        await act(async () => { finish({}) })
+      }
+      await waitFor(() => expect(screen.getByText('Создать').closest('button')).toBeEnabled())
+    })
+
     it.each([false, true])('предлагает принудительное удаление или отмену (force=%s)', async (force) => {
       mockDelete.mockReset()
       setupMockGet({ subscriptions: [{ id: '1', name: 'Test Sub', uuid: 'abc', inbounds: [] }] })
@@ -628,7 +652,7 @@ describe('SubscriptionsPage', () => {
       renderSubscriptionsPage()
       fireEvent.click(await screen.findByTestId('icon-MoreVert'))
       fireEvent.click(await screen.findByText('Удалить'))
-      fireEvent.click(screen.getAllByText('Удалить')[1])
+      fireEvent.click(screen.getByRole('button', { name: 'Удалить', exact: true }))
       const forceButton = await screen.findByRole('button', { name: 'Удалить принудительно' })
       expect(screen.getByText('Не удалось удалить все инбаунды')).toBeInTheDocument()
       if (force) {
@@ -697,7 +721,7 @@ describe('SubscriptionsPage', () => {
       const deleteOption = await screen.findByText('Удалить')
       fireEvent.click(deleteOption)
 
-      const confirmButton = screen.getAllByText('Удалить')[1] as HTMLElement
+      const confirmButton = screen.getByRole('button', { name: 'Удалить', exact: true })
       fireEvent.click(confirmButton)
 
       await waitFor(() => {
@@ -720,7 +744,7 @@ describe('SubscriptionsPage', () => {
       const deleteOption = await screen.findByText('Удалить')
       fireEvent.click(deleteOption)
 
-      const confirmButton = screen.getAllByText('Удалить')[1] as HTMLElement
+      const confirmButton = screen.getByRole('button', { name: 'Удалить', exact: true })
       fireEvent.click(confirmButton)
 
       await waitFor(() => {
@@ -730,6 +754,34 @@ describe('SubscriptionsPage', () => {
   })
 
   describe('Принудительная ротация', () => {
+    it('closes the new-subscription dialog before generation and sends one request', async () => {
+      setupMockGet()
+      let finish!: (value: unknown) => void
+      const generation = new Promise((resolve) => { finish = resolve })
+      mockPost.mockReset()
+      mockPost.mockImplementation((url: string) => url === '/subscriptions'
+        ? Promise.resolve({ data: { id: 'new-sub' } })
+        : generation)
+      renderSubscriptionsPage()
+      render(<TaskNotification />)
+      fireEvent.click(await screen.findByText('Создать'))
+      fireEvent.change(await screen.findByLabelText('Имя подписки'), { target: { value: 'New Sub' } })
+      await goToRouting()
+      fireEvent.click(screen.getByText('Сохранить'))
+      const generate = await screen.findByRole('button', { name: 'Да', exact: true })
+      await waitFor(() => expect(generate).toBeEnabled())
+      try {
+        fireEvent.click(generate)
+        fireEvent.click(generate)
+        expect(mockPost.mock.calls.filter(([url]) => url === '/rotation/rotate-one/new-sub')).toHaveLength(1)
+        expect(await screen.findByRole('status')).toHaveTextContent('Выполняется генерация подписки')
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      } finally {
+        await act(async () => { finish({ data: { success: true, message: 'Готово' } }) })
+      }
+      expect(await screen.findByText('Готово')).toBeInTheDocument()
+    })
+
     it.each([false, true])('передаёт выбранный режим после открытия диалога (all=%s)', async (all) => {
       setupMockGet({ subscriptions: [{ id: '1', name: 'Test Sub', uuid: 'abc', inbounds: [] }] })
       mockPost.mockResolvedValue({ data: { success: true } })

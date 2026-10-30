@@ -33,6 +33,25 @@ describe('InboundBuilderService', () => {
     jest.clearAllMocks();
   });
 
+  it.each([
+    'buildVlessRealityTcp',
+    'buildVlessRealityXhttp',
+    'buildVlessRealityGrpc',
+    'buildTrojanRealityTcp',
+  ] as const)('%s preserves selected fingerprints in settings and links', (method) => {
+    const params = {
+      port: 443, uuid: 'test-uuid', sni: 'example.com',
+      privateKey: 'private-key', publicKey: 'public-key',
+    };
+    for (const fingerprint of [undefined, 'chrome', 'firefox', 'safari', 'ios', 'android', 'edge', '360', 'qq', 'random', 'randomized', 'randomizednoalpn', 'unsafe']) {
+      const inbound = service[method]({ ...params, fingerprint });
+      const expected = fingerprint ?? 'edge';
+      expect(JSON.parse(inbound.streamSettings).realitySettings.settings.fingerprint).toBe(expected);
+      const link = new URL(service.buildInboundLink(inbound, 'node.example.com', 'test-uuid', ''));
+      expect(link.searchParams.get('fp')).toBe(expected);
+    }
+  });
+
   it('preserves the XHTTP GET transport settings in direct and relay subscription links', () => {
     const inbound = service.buildVlessXhttpGet({
       port: 2053,

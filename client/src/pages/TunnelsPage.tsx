@@ -1,3 +1,4 @@
+import { runTask, usePendingTask } from '../utils/pendingTask';
 import { type ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -59,6 +60,7 @@ const emptyForm = {
 };
 
 export default function TunnelsPage() {
+  const { pending } = usePendingTask();
   const [tunnels, setTunnels] = useState<Tunnel[]>([]);
   const [nodes, setNodes] = useState<NodeRecord[]>([]);
   const [open, setOpen] = useState(false);
@@ -147,28 +149,32 @@ export default function TunnelsPage() {
   };
 
   const handleCreate = async () => {
-    if (!validateForm()) {
-      setSnackbar({ open: true, type: 'error', message: 'Исправьте ошибки в форме' });
-      return;
-    }
+    return runTask("Выполняется добавление relay сервера", async () => {
+      setSnackbar((prev) => ({ ...prev, open: false }));
+      if (!validateForm()) {
+        setSnackbar({ open: true, type: 'error', message: 'Исправьте ошибки в форме' });
+        return;
+      }
 
-    const payload = {
-      ...form,
-      nodeId: form.nodeId || mainNode?.id,
-      password: authMethod === 'password' ? form.password : undefined,
-      privateKey: authMethod === 'key' ? form.privateKey : undefined,
-    };
+      const payload = {
+        ...form,
+        nodeId: form.nodeId || mainNode?.id,
+        password: authMethod === 'password' ? form.password : undefined,
+        privateKey: authMethod === 'key' ? form.privateKey : undefined,
+      };
 
-    try {
-      const { data } = await api.post<Tunnel>('/tunnels', payload);
       setOpen(false);
-      resetForm();
-      loadData();
-      setSnackbar({ open: true, type: 'success', message: 'Relay сервер добавлен' });
-      handleInstall(data.id, 'Relay сервер добавлен. Установить скрипт перенаправления сейчас?');
-    } catch (error) {
-      setSnackbar({ open: true, type: 'error', message: getApiErrorMessage(error, 'Не удалось добавить relay сервер') });
-    }
+      try {
+        const { data } = await api.post<Tunnel>('/tunnels', payload);
+        setOpen(false);
+        resetForm();
+        await loadData();
+        setSnackbar({ open: true, type: 'success', message: 'Relay сервер добавлен' });
+        handleInstall(data.id, 'Relay сервер добавлен. Установить скрипт перенаправления сейчас?');
+      } catch (error) {
+        setSnackbar({ open: true, type: 'error', message: getApiErrorMessage(error, 'Не удалось добавить relay сервер') });
+      }
+    });
   };
 
   const handleInstall = (id: number, title = 'Установить перенаправление на выбранный сервер?') => {
@@ -178,16 +184,21 @@ export default function TunnelsPage() {
       confirmText: 'Установить',
       confirmColor: 'primary',
       onConfirm: async () => {
-        setLoadingId(id);
-        try {
-          await api.post(`/tunnels/${id}/install`);
-          setSnackbar({ open: true, type: 'success', message: 'Перенаправление установлено' });
-          loadData();
-        } catch (error) {
-          setSnackbar({ open: true, type: 'error', message: getApiErrorMessage(error, 'Ошибка установки') });
-        } finally {
-          setLoadingId(null);
-        }
+        return runTask("Выполняется установка перенаправления", async () => {
+          setSnackbar((prev) => ({ ...prev, open: false }));
+          setConfirmDialog((prev) => ({ ...prev, open: false }));
+
+          setLoadingId(id);
+          try {
+            await api.post(`/tunnels/${id}/install`);
+            setSnackbar({ open: true, type: 'success', message: 'Перенаправление установлено' });
+            await loadData();
+          } catch (error) {
+            setSnackbar({ open: true, type: 'error', message: getApiErrorMessage(error, 'Ошибка установки') });
+          } finally {
+            setLoadingId(null);
+          }
+        });
       },
     });
   };
@@ -205,16 +216,21 @@ export default function TunnelsPage() {
       confirmText: 'Удалить',
       confirmColor: 'error',
       onConfirm: async () => {
-        setLoadingId(tunnel.id);
-        try {
-          await api.delete(`/tunnels/${tunnel.id}`, { params: { deleteForwarding } });
-          setSnackbar({ open: true, type: 'success', message: 'Relay сервер удалён' });
-          loadData();
-        } catch (error) {
-          setSnackbar({ open: true, type: 'error', message: getApiErrorMessage(error, 'Ошибка удаления') });
-        } finally {
-          setLoadingId(null);
-        }
+        return runTask("Выполняется удаление relay сервера", async () => {
+          setSnackbar((prev) => ({ ...prev, open: false }));
+          setConfirmDialog((prev) => ({ ...prev, open: false }));
+
+          setLoadingId(tunnel.id);
+          try {
+            await api.delete(`/tunnels/${tunnel.id}`, { params: { deleteForwarding } });
+            setSnackbar({ open: true, type: 'success', message: 'Relay сервер удалён' });
+            await loadData();
+          } catch (error) {
+            setSnackbar({ open: true, type: 'error', message: getApiErrorMessage(error, 'Ошибка удаления') });
+          } finally {
+            setLoadingId(null);
+          }
+        });
       },
     });
   };
@@ -223,8 +239,8 @@ export default function TunnelsPage() {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
         <Typography variant={isMobile ? 'h5' : 'h4'}>Relay серверы</Typography>
-        <Box><Button variant="contained" startIcon={<Add />} onClick={openCreate}>Добавить</Button></Box>
-        
+        <Box><Button disabled={Boolean(pending)} variant="contained" startIcon={<Add />} onClick={openCreate}>Добавить</Button></Box>
+
       </Box>
 
       <Paper sx={{ overflowX: 'auto' }}>
@@ -260,7 +276,7 @@ export default function TunnelsPage() {
                   {!tunnel.isInstalled && (
                     <Button
                       startIcon={loadingId === tunnel.id ? <CircularProgress size={20} /> : <Terminal />}
-                      disabled={loadingId !== null}
+                      disabled={Boolean(pending) || (loadingId !== null)}
                       onClick={() => handleInstall(tunnel.id)}
                       sx={{ mr: 1 }}
                       variant="outlined"
@@ -269,7 +285,7 @@ export default function TunnelsPage() {
                       Установить
                     </Button>
                   )}
-                  <IconButton color="error" disabled={loadingId !== null} onClick={() => handleDelete(tunnel)}>
+                  <IconButton color="error" disabled={Boolean(pending) || (loadingId !== null)} onClick={() => handleDelete(tunnel)}>
                     <Delete />
                   </IconButton>
                 </TableCell>
@@ -294,7 +310,7 @@ export default function TunnelsPage() {
             <InputLabel>Нода</InputLabel>
             <Select value={form.nodeId || mainNode?.id || ''} label="Нода" onChange={(event) => setForm((prev) => ({ ...prev, nodeId: event.target.value }))}>
               {nodes.map((node) => (
-                <MenuItem key={node.id} value={node.id}>{node.name}{node.isMain ? ' (основная)' : ''}</MenuItem>
+                <MenuItem disabled={Boolean(pending)} key={node.id} value={node.id}>{node.name}{node.isMain ? ' (основная)' : ''}</MenuItem>
               ))}
             </Select>
             {formErrors.nodeId && <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.5 }}>{formErrors.nodeId}</Typography>}
@@ -318,8 +334,8 @@ export default function TunnelsPage() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpen(false)}>Отмена</Button>
-          <Button variant="contained" onClick={handleCreate}>Сохранить</Button>
+          <Button disabled={Boolean(pending)} onClick={() => setOpen(false)}>Отмена</Button>
+          <Button disabled={Boolean(pending)} variant="contained" onClick={handleCreate}>Сохранить</Button>
         </DialogActions>
       </Dialog>
 
@@ -327,12 +343,12 @@ export default function TunnelsPage() {
         <DialogTitle>Подтверждение</DialogTitle>
         <DialogContent><Typography>{confirmDialog.title}</Typography></DialogContent>
         <DialogActions>
-          <Button onClick={() => setConfirmDialog({ ...confirmDialog, open: false })}>Отмена</Button>
-          <Button onClick={() => { setConfirmDialog({ ...confirmDialog, open: false }); confirmDialog.onConfirm(); }} variant="contained" color={confirmDialog.confirmColor}>{confirmDialog.confirmText}</Button>
+          <Button disabled={Boolean(pending)} onClick={() => setConfirmDialog({ ...confirmDialog, open: false })}>Отмена</Button>
+          <Button disabled={Boolean(pending)} onClick={() => { setConfirmDialog({ ...confirmDialog, open: false }); confirmDialog.onConfirm(); }} variant="contained" color={confirmDialog.confirmColor}>{confirmDialog.confirmText}</Button>
         </DialogActions>
       </Dialog>
 
-      <Snackbar open={snackbar.open} autoHideDuration={6000} onClose={() => setSnackbar({ ...snackbar, open: false })} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+      <Snackbar open={snackbar.open && !pending} autoHideDuration={6000} onClose={() => setSnackbar({ ...snackbar, open: false })} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.type} sx={{ width: '100%' }}>{snackbar.message}</Alert>
       </Snackbar>
     </Box>

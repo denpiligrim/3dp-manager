@@ -18,8 +18,9 @@ export class InboundBuilderService {
     sni: string;
     privateKey: string;
     publicKey: string;
+    fingerprint?: string;
   }) {
-    const { port, uuid, sni, privateKey, publicKey } = params;
+    const { port, uuid, sni, privateKey, publicKey, fingerprint = 'edge' } = params;
     return {
       enable: true,
       port,
@@ -60,7 +61,7 @@ export class InboundBuilderService {
           ],
           settings: {
             publicKey: publicKey,
-            fingerprint: 'random',
+            fingerprint,
             serverName: '',
             spiderX: '/',
           },
@@ -82,8 +83,9 @@ export class InboundBuilderService {
     sni: string;
     privateKey: string;
     publicKey: string;
+    fingerprint?: string;
   }) {
-    const { port, uuid, sni, privateKey, publicKey } = params;
+    const { port, uuid, sni, privateKey, publicKey, fingerprint = 'edge' } = params;
     return {
       enable: true,
       port,
@@ -124,7 +126,7 @@ export class InboundBuilderService {
           ],
           settings: {
             publicKey: publicKey,
-            fingerprint: 'random',
+            fingerprint,
             serverName: '',
             spiderX: '/',
           },
@@ -229,8 +231,9 @@ export class InboundBuilderService {
     sni: string;
     privateKey: string;
     publicKey: string;
+    fingerprint?: string;
   }) {
-    const { port, uuid, sni, privateKey, publicKey } = params;
+    const { port, uuid, sni, privateKey, publicKey, fingerprint = 'edge' } = params;
     return {
       enable: true,
       port,
@@ -268,7 +271,7 @@ export class InboundBuilderService {
           shortIds: [crypto.randomBytes(4).toString('hex')],
           settings: {
             publicKey: publicKey,
-            fingerprint: 'random',
+            fingerprint,
             serverName: '',
             spiderX: '/',
           },
@@ -423,8 +426,9 @@ export class InboundBuilderService {
     sni: string;
     privateKey: string;
     publicKey: string;
+    fingerprint?: string;
   }) {
-    const { port, uuid, sni, privateKey, publicKey } = params;
+    const { port, uuid, sni, privateKey, publicKey, fingerprint = 'edge' } = params;
     return {
       enable: true,
       port,
@@ -470,7 +474,7 @@ export class InboundBuilderService {
           ],
           settings: {
             publicKey: publicKey,
-            fingerprint: 'random',
+            fingerprint,
             serverName: '',
             spiderX: '/',
           },
@@ -626,7 +630,7 @@ export class InboundBuilderService {
       const r = stream.realitySettings;
       if (!r) return '';
       params.set('pbk', r.settings?.publicKey || '');
-      params.set('fp', r.settings?.fingerprint || 'random');
+      params.set('fp', r.settings?.fingerprint || 'edge');
       params.set('sni', r.serverNames?.[0] || '');
       params.set('sid', r.shortIds?.[0] || '');
       params.set('spx', '/');
@@ -744,7 +748,7 @@ export class InboundBuilderService {
       `?type=tcp` +
       `&security=reality` +
       `&pbk=${pbk}` +
-      `&fp=random` +
+      `&fp=${encodeURIComponent(reality.settings?.fingerprint || 'edge')}` +
       `&sni=${SNI}` +
       `&sid=${sid}` +
       `&spx=${spx}` +

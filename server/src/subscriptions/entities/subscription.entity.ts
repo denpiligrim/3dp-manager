@@ -56,6 +56,7 @@ export class Subscription {
     type?: string;
     port?: number | string;
     sni?: string;
+    fingerprint?: string;
     link?: string;
     nodeId?: string;
     relayServerId?: number;

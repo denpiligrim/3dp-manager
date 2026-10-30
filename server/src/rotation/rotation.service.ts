@@ -378,6 +378,7 @@ export class RotationService implements OnModuleInit {
             uuid,
             sni,
             ...keys,
+            fingerprint: config.fingerprint ?? 'edge',
           });
           break;
         case 'vless-xhttp-reality':
@@ -386,6 +387,7 @@ export class RotationService implements OnModuleInit {
             uuid,
             sni,
             ...keys,
+            fingerprint: config.fingerprint ?? 'edge',
           });
           break;
         case 'vless-xhttp-get':
@@ -397,6 +399,7 @@ export class RotationService implements OnModuleInit {
             uuid,
             sni,
             ...keys,
+            fingerprint: config.fingerprint ?? 'edge',
           });
           break;
         case 'vless-ws':
@@ -414,6 +417,7 @@ export class RotationService implements OnModuleInit {
             uuid,
             sni,
             ...keys,
+            fingerprint: config.fingerprint ?? 'edge',
           });
           break;
         default:
