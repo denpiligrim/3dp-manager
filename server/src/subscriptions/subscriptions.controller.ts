@@ -1,4 +1,8 @@
 import {
+  BackgroundTask,
+  JournalAction,
+} from '../operations/operations.decorators';
+import {
   Controller,
   Get,
   Post,
@@ -25,6 +29,7 @@ export class SubscriptionsController {
   }
 
   @Post()
+  @JournalAction('subscription.create', 'Создание подписки')
   create(@Body() createSubscriptionDto: CreateSubscriptionDto) {
     return this.subscriptionsService.create(createSubscriptionDto);
   }
@@ -74,6 +79,7 @@ export class SubscriptionsController {
   }
 
   @Put(':id')
+  @JournalAction('subscription.update', 'Изменение подписки')
   async update(
     @Param('id') id: string,
     @Body() updateSubscriptionDto: UpdateSubscriptionDto,
@@ -89,6 +95,10 @@ export class SubscriptionsController {
   }
 
   @Delete(':id')
+  @BackgroundTask('subscription.delete', 'Удаление подписки', [
+    'param:id',
+    'query:force',
+  ])
   remove(@Param('id') id: string, @Query('force') force?: string) {
     return this.subscriptionsService.remove(id, force === 'true');
   }

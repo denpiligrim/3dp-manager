@@ -10,7 +10,7 @@ import {
   useMediaQuery,
   useTheme,
 } from '@mui/material';
-import { Dns, Hub, People, Settings, SwapHoriz } from '@mui/icons-material';
+import { Dns, Hub, People, Settings, SwapHoriz, History } from '@mui/icons-material';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 
@@ -26,6 +26,7 @@ const menuItems = [
   { text: 'Ноды', icon: <Hub />, path: '/nodes' },
   { text: 'Relay серверы', icon: <SwapHoriz />, path: '/tunnels' },
   { text: 'Домены', icon: <Dns />, path: '/domains' },
+  { text: 'Журнал', icon: <History />, path: '/journal' },
   { text: 'Настройки', icon: <Settings />, path: '/settings' },
 ];
 

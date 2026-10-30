@@ -57,7 +57,10 @@ export class ClientController {
 
     await this.setSubscriptionMetadata(sub, res);
     const links =
-      sub.inbounds?.map((i) => i.link).filter((l) => l && l.length > 0) || [];
+      sub.inbounds
+        ?.filter((i) => !i.isPending)
+        .map((i) => i.link)
+        .filter((l) => l && l.length > 0) || [];
 
     const plainTextList = [...this.getRoutingLinks(sub), ...links].join('\n');
     const base64Config = Buffer.from(plainTextList).toString('base64');
@@ -127,7 +130,7 @@ export class ClientController {
     await this.setSubscriptionMetadata(sub, res);
     const links =
       sub.inbounds
-        ?.filter((i) => i.link && i.link.length > 0)
+        ?.filter((i) => !i.isPending && i.link && i.link.length > 0)
         .map((i) => {
           if (i.protocol === 'custom') {
             return i.link;

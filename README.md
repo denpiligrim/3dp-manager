@@ -70,6 +70,8 @@
 
 ---
 
+Описание фоновой очереди, Журнала и настройки нагрузки: [Фоновые операции](docs/background-operations.md).
+
 ## Установка
 
 У вас должна быть установлена панель управления `3x-ui`, которую можно поставить командой: `bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)`

@@ -13,6 +13,7 @@ import PublicRoute from './auth/PublicRoute';
 import TunnelsPage from './pages/TunnelsPage';
 import NodesPage from './pages/NodesPage';
 import TaskNotification from './components/TaskNotification';
+import JournalPage from './pages/JournalPage';
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
               <Route path="settings" element={<SettingsPage />} />
               <Route path="domains" element={<DomainsPage />} />
               <Route path="nodes" element={<NodesPage />} />
+              <Route path="journal" element={<JournalPage />} />
               <Route path="tunnels" element={<TunnelsPage />} />
             </Route>
             <Route path="*" element={<NotFoundPage />} />

@@ -720,7 +720,7 @@ export default function SubscriptionsPage() {
   };
 
   const showLinks = (sub: Subscription) => {
-    const links = sub.inbounds?.map((item) => (item as { link?: string }).link).filter(Boolean) || [];
+    const links = sub.inbounds?.map((item) => (item as { link?: string }).link).filter((link): link is string => Boolean(link)) || [];
     setCurrentLinks(links.length ? links : ['Нет активных ссылок (ждите ротации)']);
     setLinksOpen(true);
   };
@@ -823,7 +823,14 @@ export default function SubscriptionsPage() {
           <TableBody>
             {subs.map((sub) => (
               <TableRow key={sub.id}>
-                <TableCell sx={{ fontWeight: 700 }}>{sub.name}</TableCell>
+                <TableCell>
+                  <Typography variant="body2" fontWeight={700}>{sub.name}</Typography>
+                  {sub.clientId && (
+                    <Typography variant="caption" color="text.secondary" display="block" sx={{ overflowWrap: 'anywhere' }}>
+                      {sub.clientId}
+                    </Typography>
+                  )}
+                </TableCell>
                 <TableCell sx={{ fontFamily: 'monospace' }}>{sub.uuid}</TableCell>
                 <TableCell>{sub.inbounds?.length || 0}</TableCell>
                 <TableCell>

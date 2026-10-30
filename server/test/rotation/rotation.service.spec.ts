@@ -1,3 +1,4 @@
+import { OperationsService } from 'src/operations/operations.service';
 /* eslint-disable @typescript-eslint/unbound-method */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
@@ -32,6 +33,15 @@ describe('RotationService', () => {
   let xuiService: XuiService;
   let inboundBuilder: InboundBuilderService;
 
+  const mockOperations = {
+    enqueue: jest.fn(),
+    progress: jest.fn(),
+    note: jest.fn(),
+    record: jest.fn(),
+    resumeCheckpoint: jest.fn(),
+    checkpoint: jest.fn(),
+  };
+
   const mockSubRepo = {
     find: jest.fn(),
     findOne: jest.fn(),
@@ -45,6 +55,7 @@ describe('RotationService', () => {
   };
 
   const mockInboundRepo = {
+    update: jest.fn(),
     find: jest.fn(),
     findOne: jest.fn(),
     create: jest.fn(),
@@ -105,6 +116,7 @@ describe('RotationService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RotationService,
+        { provide: OperationsService, useValue: mockOperations },
         {
           provide: getRepositoryToken(Subscription),
           useValue: mockSubRepo,
@@ -141,6 +153,15 @@ describe('RotationService', () => {
     }).compile();
 
     service = module.get<RotationService>(RotationService);
+    jest.spyOn(service as any, 'pause').mockResolvedValue(undefined);
+    mockInboundRepo.create.mockImplementation((value) => ({ ...value }));
+    mockSubRepo.findOne.mockImplementation(async (options) => {
+      const list = await mockSubRepo.find({});
+      return (
+        list?.find((item: { id: string }) => item.id === options.where.id) ||
+        null
+      );
+    });
     _subRepo = module.get<Repository<Subscription>>(
       getRepositoryToken(Subscription),
     );
@@ -230,11 +251,54 @@ describe('RotationService', () => {
       await (service as any).handleTicker();
 
       // Ротация запустится, но завершится с ошибкой (пустые домены)
-      expect(xuiService.login).toHaveBeenCalled();
+      expect(xuiService.login).not.toHaveBeenCalled();
+      expect(mockOperations.enqueue).toHaveBeenCalledWith(
+        'rotation.all',
+        expect.any(String),
+        [null],
+      );
     });
   });
 
   describe('performRotation', () => {
+    it('pages through a large batch and continues after a failed subscription without loading all relations', async () => {
+      const subscriptions = Array.from({ length: 25 }, (_, index) => ({
+        id: String(index).padStart(2, '0'),
+        name: `Subscription ${index}`,
+      }));
+      mockXuiService.login.mockResolvedValue(true);
+      mockDomainRepo.find.mockResolvedValue([]);
+      mockSubRepo.find.mockImplementation(async (options) =>
+        subscriptions
+          .filter((sub) => !options.where.id || sub.id > options.where.id.value)
+          .slice(0, options.take)
+          .map((sub) => ({ id: sub.id })),
+      );
+      mockSubRepo.findOne.mockImplementation(async (options) =>
+        subscriptions.find((sub) => sub.id === options.where.id),
+      );
+      const rotate = jest
+        .spyOn(service as any, 'rotateSubscription')
+        .mockImplementation(async (sub: any) => sub.id !== '05');
+      try {
+        const result = await service.performRotation();
+        expect(result.success).toBe(false);
+        expect(rotate).toHaveBeenCalledTimes(25);
+        expect(mockSubRepo.find).toHaveBeenCalledTimes(3);
+        for (const [options] of mockSubRepo.find.mock.calls) {
+          expect(options).toMatchObject({ select: { id: true }, take: 10 });
+          expect(options.relations).toBeUndefined();
+        }
+        expect(mockOperations.progress).toHaveBeenLastCalledWith(
+          25,
+          25,
+          expect.any(String),
+        );
+      } finally {
+        rotate.mockRestore();
+      }
+    });
+
     it.each(['scheduled', 'manual'])(
       'allows XHTTP GET rotation without SNI domains (%s)',
       async (mode) => {
@@ -259,12 +323,7 @@ describe('RotationService', () => {
               ? await service.rotateSingleSubscription(sub.id)
               : await service.performRotation();
           expect(result.success).toBe(true);
-          expect(rotate).toHaveBeenCalledWith(
-            sub,
-            [],
-            undefined,
-            false,
-          );
+          expect(rotate).toHaveBeenCalledWith(sub, [], undefined, false);
         } finally {
           rotate.mockRestore();
         }
@@ -311,7 +370,7 @@ describe('RotationService', () => {
 
       expect(result).toEqual({
         success: false,
-        message: 'Список доменов пуст!',
+        message: 'Обработано подписок: 1. Ошибок: 1.',
       });
     });
 
@@ -350,7 +409,7 @@ describe('RotationService', () => {
 
       expect(result).toEqual({
         success: true,
-        message: 'Ротация успешно выполнена',
+        message: 'Обработано подписок: 1. Ошибок: 0.',
       });
     });
   });
@@ -662,7 +721,7 @@ describe('RotationService', () => {
         uuid: 'uuid-1',
         isEnabled: true,
         inbounds: [mockInbound],
-        inboundsConfig: [],
+        inboundsConfig: [{ type: 'custom', link: 'vless://replacement' }],
       };
 
       mockInbound.subscription = mockSub;

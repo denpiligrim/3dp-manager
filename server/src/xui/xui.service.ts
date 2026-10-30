@@ -1,10 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import axios, { AxiosInstance, AxiosError } from 'axios';
 import * as https from 'https';
 import * as http from 'http';
-import { randomBytes, randomUUID } from 'crypto';
+import { createHash, randomBytes, randomUUID } from 'crypto';
+import { OperationsService } from '../operations/operations.service';
 import { Setting } from '../settings/entities/setting.entity';
 import {
   XuiResponse,
@@ -26,11 +27,29 @@ export class XuiService {
   private api: AxiosInstance;
   private csrfToken = '';
   private loginPromise?: Promise<boolean>;
+  private readonly httpAgent = new http.Agent({
+    keepAlive: true,
+    maxSockets: 2,
+    maxFreeSockets: 1,
+  });
+  private readonly httpsAgent = new https.Agent({
+    keepAlive: true,
+    maxSockets: 2,
+    maxFreeSockets: 1,
+    rejectUnauthorized: false,
+  });
+  private readonly sessions = new Map<
+    string,
+    { fingerprint: string; expires: number; api: Promise<AxiosInstance | null> }
+  >();
+  private readonly mutations = new Map<string, Promise<unknown>>();
+  private readonly lastMutation = new Map<string, number>();
 
   constructor(
     @InjectRepository(Setting)
     private settingsRepo: Repository<Setting>,
     private sessionService: SessionService,
+    @Optional() private readonly operations?: OperationsService,
   ) {
     this.api = axios.create({
       timeout: 15000,
@@ -77,10 +96,10 @@ export class XuiService {
 
   private getAgentConfig(baseURL?: string) {
     if (!baseURL || baseURL.startsWith('https://')) {
-      return { httpsAgent: new https.Agent({ rejectUnauthorized: false }) };
+      return { httpsAgent: this.httpsAgent };
     }
 
-    return { httpAgent: new http.Agent() };
+    return { httpAgent: this.httpAgent };
   }
 
   private mergeCookies(current: string, setCookie?: string[] | null): string {
@@ -131,6 +150,46 @@ export class XuiService {
   private async createAuthenticatedApi(
     node?: Node,
   ): Promise<AxiosInstance | null> {
+    const key = node?.id || 'default';
+    const defaults = node ? undefined : await this.getSettings();
+    const fingerprint = createHash('sha256')
+      .update(
+        JSON.stringify(
+          node
+            ? [
+                node.url,
+                node.host,
+                node.port,
+                node.protocol,
+                node.authType,
+                node.login,
+                node.password,
+                node.token,
+              ]
+            : [defaults?.xui_url, defaults?.xui_login, defaults?.xui_password],
+        ),
+      )
+      .digest('hex');
+    const cached = this.sessions.get(key);
+    if (
+      cached &&
+      cached.expires > Date.now() &&
+      cached.fingerprint === fingerprint
+    )
+      return cached.api;
+    if (this.sessions.size >= 100)
+      this.sessions.delete(this.sessions.keys().next().value!);
+    const api = this.authenticate(node).catch((error: unknown) => {
+      this.sessions.delete(key);
+      throw error;
+    });
+    this.sessions.set(key, { fingerprint, expires: Date.now() + 300000, api });
+    const result = await api;
+    if (!result) this.sessions.delete(key);
+    return result;
+  }
+
+  private async authenticate(node?: Node): Promise<AxiosInstance | null> {
     if (!node) {
       const success = await this.login();
       return success ? this.api : null;
@@ -264,82 +323,142 @@ export class XuiService {
     return false;
   }
 
+  private wait(ms: number) {
+    return new Promise<void>((resolve) => setTimeout(resolve, ms));
+  }
+
+  private async withMutation<T>(
+    node: Node | undefined,
+    action: () => Promise<T>,
+  ): Promise<T> {
+    const key = node?.id || 'default';
+    const previous = this.mutations.get(key) || Promise.resolve();
+    const task = previous.catch(() => undefined).then(action);
+    this.mutations.set(key, task);
+    try {
+      return await task;
+    } finally {
+      if (this.mutations.get(key) === task) this.mutations.delete(key);
+    }
+  }
+
+  private async pace(node?: Node) {
+    const key = node?.id || 'default';
+    const interval = Math.max(
+      100,
+      Math.min(5000, Number(process.env.PANEL_MUTATION_INTERVAL_MS) || 300),
+    );
+    await this.wait(
+      Math.max(0, interval - (Date.now() - (this.lastMutation.get(key) || 0))),
+    );
+    if (this.lastMutation.size >= 1000)
+      this.lastMutation.delete(this.lastMutation.keys().next().value!);
+    this.lastMutation.set(key, Date.now());
+    await this.operations?.assertOwnership();
+  }
+
+  private transient(error: unknown) {
+    const status = (error as AxiosError)?.response?.status;
+    return !status || status === 408 || status === 429 || status >= 500;
+  }
+
+  private transientMessage(message: string) {
+    return /busy|locked|temporar|timeout|timed out|try again|unavailable|database.*lock|internal|server error|unknown error/i.test(
+      message,
+    );
+  }
+
+  private async retryNotice(kind: string, attempt: number, node?: Node) {
+    this.logger.warn(
+      `3x-ui ${kind}: retry ${attempt + 1}/3 (${node?.name || 'default'})`,
+    );
+    await this.operations?.record(
+      'inbound.retry',
+      'Повтор запроса к 3x-ui',
+      'warning',
+      `Операция: ${kind}. Следующая попытка ${attempt + 1}/3.`,
+      node?.name || 'Основная панель',
+    );
+    await this.wait(500 * 2 ** (attempt - 1) + Math.floor(Math.random() * 150));
+  }
+
+  private async remoteInbounds(
+    api: AxiosInstance,
+  ): Promise<Array<{ id: number; tag?: string; port?: number }> | null> {
+    try {
+      const res = await api.get<
+        XuiResponse<Array<{ id: number; tag?: string; port?: number }>>
+      >('/panel/api/inbounds/list');
+      return res.data?.success && Array.isArray(res.data.obj)
+        ? res.data.obj
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
   async addInbound(
     inboundConfig: { port: number; [key: string]: unknown } | XuiInboundRaw,
     node?: Node,
   ): Promise<number | null> {
-    let attempts = 0;
-    const maxAttempts = 3;
-
-    this.logger.log(`Adding inbound on port ${inboundConfig.port}`);
-
-    while (attempts < maxAttempts) {
-      attempts++;
-
-      try {
-        const api = await this.createAuthenticatedApi(node);
-        if (!api) {
-          this.logger.error('3x-ui authentication failed before addInbound');
-          return null;
-        }
-
-        const res = await api.post<XuiResponse<{ id: number }>>(
-          '/panel/api/inbounds/add',
-          inboundConfig,
-        );
-
-        if (res.data?.success) {
-          this.logger.log(
-            `Inbound created successfully with ID: ${res.data.obj.id}`,
+    return this.withMutation(node, async () => {
+      // A unique tag identifies this logical creation even if its response is lost.
+      const tag = `3dp-${randomUUID()}`;
+      Object.assign(inboundConfig, { tag });
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        let api: AxiosInstance | null = null;
+        let sent = false;
+        try {
+          api = await this.createAuthenticatedApi(node);
+          if (!api) return null;
+          await this.pace(node);
+          sent = true;
+          const res = await api.post<XuiResponse<{ id: number }>>(
+            '/panel/api/inbounds/add',
+            inboundConfig,
           );
-          return res.data.obj.id;
-        } else {
-          const msg = res.data?.msg || '';
-
-          if (
-            msg.toLowerCase().includes('port') &&
-            msg.toLowerCase().includes('exists')
-          ) {
-            this.logger.warn(
-              `Попытка ${attempts}/${maxAttempts}: Порт ${inboundConfig.port} занят. Генерируем новый...`,
+          if (res.data?.success && res.data.obj?.id) return res.data.obj.id;
+          const message = res.data?.msg || '';
+          if (/port/i.test(message) && /exists|used|occupied/i.test(message)) {
+            inboundConfig.port = Math.floor(Math.random() * 50000) + 10000;
+          } else if (!this.transientMessage(message)) {
+            this.logger.error(
+              '3x-ui rejected inbound creation (check configuration)',
             );
-
-            inboundConfig.port = Math.floor(
-              Math.random() * (60000 - 10000 + 1) + 10000,
-            );
-          } else {
-            this.logger.error(`3x-ui отклонил создание: ${msg}`);
             return null;
           }
-        }
-      } catch (e) {
-        const error = e as AxiosError;
-        if (error.response?.status === 401) {
-          this.logger.log('Сессия истекла, пробуем релогин...');
-          if (!node && (await this.login())) {
-            return this.addInbound(inboundConfig);
+        } catch (error) {
+          const status = (error as AxiosError)?.response?.status;
+          if (status === 401 || status === 403) {
+            this.sessions.delete(node?.id || 'default');
+          } else if (!this.transient(error)) {
+            return null;
+          } else {
+            if (!sent) {
+              if (attempt < 3) await this.retryNotice('create', attempt, node);
+              continue;
+            }
+            // Reconcile even after the last permitted POST.
+            const list = api ? await this.remoteInbounds(api) : null;
+            if (!list) {
+              await this.operations?.record(
+                'inbound.uncertain',
+                'Неизвестный результат создания инбаунда',
+                'warning',
+                `Ответ потерян, повтор не отправлен. Проверьте на панели tag ${tag}, порт ${inboundConfig.port}.`,
+                node?.name || 'Основная панель',
+              );
+              return null;
+            }
+            const existing = list.find((item) => item.tag === tag);
+            if (existing) return existing.id;
           }
         }
-
-        if (error.response?.status === 403) {
-          this.logger.error(
-            'Панель вернула 403 на /panel/api/inbounds/add — отклонён CSRF-токен. ' +
-              'Проверьте, что нода авторизуется API-токеном, либо обновите 3dp-manager.',
-          );
-          return null;
-        }
-
-        this.logger.error(
-          `Ошибка сети/валидации при добавлении инбаунда: ${error.message}`,
-        );
-        return null;
+        if (attempt < 3) await this.retryNotice('create', attempt, node);
       }
-    }
-
-    this.logger.error(
-      `Не удалось создать инбаунд после ${maxAttempts} попыток смены порта.`,
-    );
-    return null;
+      this.logger.error('Inbound creation failed after 3 attempts');
+      return null;
+    });
   }
 
   async prepareSubscriptionClient(
@@ -363,6 +482,7 @@ export class XuiService {
       email = match.client.email;
     }
     if (autoCreate) {
+      await this.operations?.assertOwnership();
       // Import supports unattached clients, unlike /clients/add, which requires
       // an existing inbound. Existing emails are skipped without changing secrets.
       const imported = await api.post<XuiResponse>(
@@ -461,6 +581,7 @@ export class XuiService {
     try {
       const api = await this.createAuthenticatedApi(node);
       if (!api) throw new Error('3x-ui authentication failed');
+      await this.pace(node);
       const attached = await api.post<XuiResponse>(
         `/panel/api/clients/${encodeURIComponent(client.email!)}/attach`,
         { inboundIds: [id] },
@@ -484,38 +605,41 @@ export class XuiService {
   }
 
   async deleteInbound(id: number, node?: Node): Promise<boolean> {
-    if (!id || id <= 0) {
-      this.logger.debug(
-        `Skipping 3x-ui inbound deletion for non-remote id: ${id}`,
-      );
-      return true;
-    }
-
-    try {
-      const api = await this.createAuthenticatedApi(node);
-      if (!api) {
-        this.logger.error(
-          `3x-ui authentication failed before deleting inbound ${id}`,
-        );
-        return false;
+    if (!id || id <= 0) return true;
+    return this.withMutation(node, async () => {
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        let api: AxiosInstance | null = null;
+        try {
+          api = await this.createAuthenticatedApi(node);
+          if (!api) return false;
+          await this.pace(node);
+          const res = await api.post<XuiResponse>(
+            `/panel/api/inbounds/del/${id}`,
+          );
+          if (res.data?.success) return true;
+          const list = await this.remoteInbounds(api);
+          if (list && !list.some((item) => item.id === id)) return true;
+          const message = res.data?.msg || '';
+          if (
+            !this.transientMessage(message) &&
+            !/not found|not exist/i.test(message)
+          )
+            return false;
+        } catch (error) {
+          const status = (error as AxiosError)?.response?.status;
+          if (status === 401 || status === 403) {
+            this.sessions.delete(node?.id || 'default');
+          } else {
+            const list = api ? await this.remoteInbounds(api) : null;
+            if (list && !list.some((item) => item.id === id)) return true;
+            if (!this.transient(error)) return false;
+          }
+        }
+        if (attempt < 3) await this.retryNotice('delete', attempt, node);
       }
-      const res = await api.post<XuiResponse<unknown>>(
-        `/panel/api/inbounds/del/${id}`,
-      );
-      if (!res.data?.success) {
-        this.logger.error(
-          `3x-ui rejected inbound deletion ${id}: ${res.data?.msg || 'unknown error'}`,
-        );
-        return false;
-      }
-      this.logger.debug(`Inbound ${id} deleted`);
-      return true;
-    } catch (e) {
-      const error = e as AxiosError;
-      this.logger.error(`Ошибка удаления инбаунда ${id}: ${error.message}`);
-    }
-
-    return false;
+      this.logger.error(`Inbound ${id} deletion failed after 3 attempts`);
+      return false;
+    });
   }
 
   async checkConnection(

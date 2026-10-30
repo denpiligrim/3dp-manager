@@ -32,6 +32,10 @@ export function dismissTaskError() {
   update({ ...state, error: null });
 }
 
+export function updateTaskProgress(message: string) {
+  if (state.pending) update({ ...state, pending: message });
+}
+
 export function usePendingTask() {
   return useSyncExternalStore(subscribe, snapshot);
 }

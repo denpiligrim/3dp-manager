@@ -62,6 +62,116 @@ describe('XuiService', () => {
     jest.resetAllMocks();
   });
 
+  describe('bounded and idempotent mutations', () => {
+    beforeEach(() => {
+      jest
+        .spyOn(service as any, 'createAuthenticatedApi')
+        .mockResolvedValue(mockAxiosInstance);
+      jest.spyOn(service as any, 'wait').mockResolvedValue(undefined);
+    });
+    const config = () => ({
+      port: 23456,
+      protocol: 'vless',
+      settings: '{}',
+      streamSettings: '{}',
+    });
+
+    it('retries transient server failures at most three times', async () => {
+      mockAxiosInstance.post.mockRejectedValue({ response: { status: 503 } });
+      mockAxiosInstance.get.mockResolvedValue({
+        data: { success: true, obj: [] },
+      });
+      expect(await service.addInbound(config())).toBeNull();
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(3);
+    });
+    it('recovers a creation with a lost response without sending it twice', async () => {
+      const inbound = config();
+      mockAxiosInstance.post.mockRejectedValue({ code: 'ECONNRESET' });
+      mockAxiosInstance.get.mockImplementation(() =>
+        Promise.resolve({
+          data: { success: true, obj: [{ id: 71, tag: (inbound as any).tag }] },
+        }),
+      );
+      expect(await service.addInbound(inbound)).toBe(71);
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+    });
+    it('does not replay creation when its remote outcome cannot be checked', async () => {
+      mockAxiosInstance.post.mockRejectedValue({ code: 'ETIMEDOUT' });
+      mockAxiosInstance.get.mockRejectedValue(new Error('Panel unavailable'));
+      expect(await service.addInbound(config())).toBeNull();
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+    });
+    it('does not retry permanent configuration errors', async () => {
+      mockAxiosInstance.post.mockResolvedValue({
+        data: { success: false, msg: 'invalid protocol' },
+      });
+      expect(await service.addInbound(config())).toBeNull();
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+    });
+    it('bounds authentication failures without recursive login', async () => {
+      mockAxiosInstance.post.mockRejectedValue({ response: { status: 401 } });
+      expect(await service.addInbound(config())).toBeNull();
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(3);
+    });
+    it('treats already completed deletion after a timeout as success', async () => {
+      mockAxiosInstance.post.mockRejectedValue({ code: 'ETIMEDOUT' });
+      mockAxiosInstance.get.mockResolvedValue({
+        data: { success: true, obj: [] },
+      });
+      expect(await service.deleteInbound(71)).toBe(true);
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+    });
+    it('retries deletion three times and preserves a failed remote inbound', async () => {
+      mockAxiosInstance.post.mockRejectedValue({ response: { status: 503 } });
+      mockAxiosInstance.get.mockResolvedValue({
+        data: { success: true, obj: [{ id: 71 }] },
+      });
+      expect(await service.deleteInbound(71)).toBe(false);
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(3);
+    });
+    it('serializes mutations on a node even if callers run in parallel', async () => {
+      let finish!: (value: unknown) => void;
+      mockAxiosInstance.post
+        .mockReturnValueOnce(
+          new Promise((resolve) => {
+            finish = resolve;
+          }),
+        )
+        .mockResolvedValue({ data: { success: true, obj: { id: 72 } } });
+      const first = service.addInbound(config());
+      const second = service.deleteInbound(70);
+      for (let i = 0; i < 10 && !mockAxiosInstance.post.mock.calls.length; i++)
+        await Promise.resolve();
+      try {
+        expect(mockAxiosInstance.post).toHaveBeenCalledTimes(1);
+      } finally {
+        finish({ data: { success: true, obj: { id: 71 } } });
+      }
+      await Promise.all([first, second]);
+      expect(mockAxiosInstance.post).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('reuses node sessions but refreshes them when credentials change', async () => {
+    const authenticate = jest
+      .spyOn(service as any, 'authenticate')
+      .mockResolvedValue(mockAxiosInstance);
+    const node = {
+      id: 'cache-node',
+      url: 'https://panel.example',
+      authType: NodeAuthType.Token,
+      token: 'first',
+    } as Node;
+    const cached = service as unknown as {
+      createAuthenticatedApi: (node: Node) => Promise<unknown>;
+    };
+    await cached.createAuthenticatedApi(node);
+    await cached.createAuthenticatedApi(node);
+    expect(authenticate).toHaveBeenCalledTimes(1);
+    await cached.createAuthenticatedApi({ ...node, token: 'changed' });
+    expect(authenticate).toHaveBeenCalledTimes(2);
+  });
+
   describe('shared subscription clients', () => {
     const stored = {
       id: 17,

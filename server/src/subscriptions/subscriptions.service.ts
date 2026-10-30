@@ -24,11 +24,16 @@ export class SubscriptionsService {
     private xuiService: XuiService,
   ) {}
 
-  findAll() {
-    return this.subRepo.find({
+  async findAll() {
+    const subscriptions = await this.subRepo.find({
       relations: ['inbounds', 'node', 'relayServer'],
       order: { createdAt: 'DESC' },
     });
+    for (const sub of subscriptions) {
+      if (sub.inbounds)
+        sub.inbounds = sub.inbounds.filter((inbound) => !inbound.isPending);
+    }
+    return subscriptions;
   }
 
   async create(dto: CreateSubscriptionDto) {

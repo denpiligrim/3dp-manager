@@ -29,6 +29,8 @@ services:
       ADMIN_PASSWORD: admin
       PORT: 3100
       LOG_LEVEL: debug
+      PANEL_MUTATION_INTERVAL_MS: ${PANEL_MUTATION_INTERVAL_MS:-300}
+      ROTATION_SUBSCRIPTION_PAUSE_MS: ${ROTATION_SUBSCRIPTION_PAUSE_MS:-500}
       ALLOWED_ORIGINS: http://localhost:8080,http://localhost
     ports:
       - "3100:3100"

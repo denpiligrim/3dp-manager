@@ -1,4 +1,8 @@
 import {
+  BackgroundTask,
+  JournalAction,
+} from '../operations/operations.decorators';
+import {
   Body,
   Controller,
   Delete,
@@ -21,6 +25,7 @@ export class NodesController {
   }
 
   @Post()
+  @JournalAction('node.create', 'Создание ноды')
   create(@Body() dto: CreateNodeDto) {
     return this.nodesService.create(dto);
   }
@@ -36,17 +41,20 @@ export class NodesController {
   }
 
   @Put(':id')
+  @JournalAction('node.update', 'Изменение ноды')
   update(@Param('id') id: string, @Body() dto: UpdateNodeDto) {
     return this.nodesService.update(id, dto);
   }
 
   @Delete(':id')
+  @BackgroundTask('node.delete', 'Удаление ноды', ['param:id', 'query:force'])
   remove(@Param('id') id: string, @Query('force') force?: string) {
     const isForce = force === 'true';
     return this.nodesService.remove(id, isForce);
   }
 
   @Post(':id/main')
+  @JournalAction('node.main', 'Смена основной ноды')
   setMain(@Param('id') id: string) {
     return this.nodesService.setMain(id);
   }
@@ -57,6 +65,7 @@ export class NodesController {
   }
 
   @Post('sync/main')
+  @JournalAction('node.sync', 'Импорт нод')
   syncFromMain() {
     return this.nodesService.syncFromMain();
   }
