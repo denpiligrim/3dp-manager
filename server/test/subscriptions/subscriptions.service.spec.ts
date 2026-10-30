@@ -17,6 +17,7 @@ describe('SubscriptionsService', () => {
   let xuiService: XuiService;
 
   const mockSubRepo = {
+    update: jest.fn(),
     find: jest.fn(),
     findOne: jest.fn(),
     create: jest.fn(),
@@ -40,6 +41,8 @@ describe('SubscriptionsService', () => {
 
   const mockXuiService = {
     deleteInbound: jest.fn(),
+    prepareSubscriptionClient: jest.fn(),
+    getSubscriptionUsage: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -76,6 +79,21 @@ describe('SubscriptionsService', () => {
   afterEach(() => {
     jest.clearAllMocks();
   });
+
+  it.each(['happ', 'incy'])(
+    'rejects an invalid %s profile before saving a subscription',
+    async (scheme) => {
+      await expect(
+        service.create({
+          name: 'Test',
+          inboundsConfig: [
+            { type: `${scheme}-routing`, routingProfile: 'invalid' },
+          ],
+        }),
+      ).rejects.toThrow('routing profile');
+      expect(subRepo.save).not.toHaveBeenCalled();
+    },
+  );
 
   describe('findAll', () => {
     it('должен вернуть все подписки с relations и сортировкой', async () => {
@@ -149,7 +167,12 @@ describe('SubscriptionsService', () => {
 
       expect(subRepo.create).toHaveBeenCalledWith({
         name: 'Test Subscription',
+        note: undefined,
+        supportUrl: undefined,
+        websiteUrl: undefined,
         uuid: expect.any(String),
+        clientId: expect.stringMatching(/^3dp-/),
+        clientAutoCreate: true,
         inboundsConfig: createDto.inboundsConfig,
         isAutoRotationEnabled: true,
         node: null,
@@ -313,6 +336,93 @@ describe('SubscriptionsService', () => {
     });
   });
 
+  it('stores a supplied client identifier without enabling automatic creation', async () => {
+    await service.create({ name: 'Shared', clientId: ' existing-client ' });
+    expect(mockSubRepo.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientId: 'existing-client',
+        clientAutoCreate: false,
+      }),
+    );
+  });
+
+  it('preserves automatic client ownership when editing an unchanged identifier', async () => {
+    const sub = {
+      id: 'test',
+      clientId: '3dp-generated',
+      clientAutoCreate: true,
+    };
+    mockSubRepo.findOne.mockResolvedValue(sub);
+    await service.update('test', { clientId: '3dp-generated' });
+    expect(mockSubRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({ clientAutoCreate: true }),
+    );
+  });
+
+  it('fetches client information before saving and blocks creation if it is unavailable', async () => {
+    mockSubRepo.create.mockReturnValueOnce({
+      clientId: 'existing',
+      inboundsConfig: [{ type: 'vless-ws' }],
+    });
+    mockXuiService.prepareSubscriptionClient.mockRejectedValueOnce(
+      new Error('Panel unavailable'),
+    );
+    await expect(
+      service.create({ name: 'VPN', clientId: 'existing' }),
+    ).rejects.toThrow('Не удалось получить данные клиента');
+    expect(mockSubRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('aggregates traffic once per node and uses the earliest finite expiration', async () => {
+    const a = { id: 'a', url: 'https://a' };
+    const b = { id: 'b', url: 'https://b' };
+    jest
+      .spyOn(service as any, 'resolveNode')
+      .mockImplementation(async (id) => (id === 'a' ? a : b));
+    mockXuiService.prepareSubscriptionClient.mockResolvedValue({
+      email: 'shared',
+    });
+    mockXuiService.getSubscriptionUsage
+      .mockResolvedValueOnce({
+        upload: 10,
+        download: 20,
+        total: 100,
+        expire: 2000,
+      })
+      .mockResolvedValueOnce({
+        upload: 30,
+        download: 40,
+        total: 200,
+        expire: 1000,
+      });
+    const sub = {
+      clientId: 'shared',
+      clientAutoCreate: true,
+      inboundsConfig: [
+        { type: 'vless-ws', nodeId: 'a' },
+        { type: 'vmess-tcp', nodeId: 'a' },
+        { type: 'vless-ws', nodeId: 'b' },
+      ],
+    } as Subscription;
+    expect(await service.syncClientUsage(sub, true)).toEqual({
+      upload: 40,
+      download: 60,
+      total: 300,
+      expire: 1000,
+    });
+    expect(mockXuiService.prepareSubscriptionClient).toHaveBeenCalledTimes(2);
+    expect(mockXuiService.prepareSubscriptionClient).toHaveBeenCalledWith(
+      'shared',
+      true,
+      a,
+    );
+    expect(mockXuiService.prepareSubscriptionClient).toHaveBeenCalledWith(
+      'shared',
+      true,
+      b,
+    );
+  });
+
   describe('remove', () => {
     const subWithInbounds: Subscription = {
       id: 'test-id',
@@ -357,6 +467,33 @@ describe('SubscriptionsService', () => {
 
       expect(xuiService.deleteInbound).toHaveBeenCalledWith(101, undefined);
       expect(xuiService.deleteInbound).toHaveBeenCalledWith(102, undefined);
+      expect(subRepo.remove).toHaveBeenCalledWith(subWithInbounds);
+    });
+
+    it.each([false, new Error('Panel unavailable')])(
+      'сохраняет подписку при ошибке удаления: %s',
+      async (failure) => {
+        mockSubRepo.findOne.mockResolvedValue(subWithInbounds);
+        if (failure instanceof Error)
+          mockXuiService.deleteInbound.mockRejectedValue(failure);
+        else mockXuiService.deleteInbound.mockResolvedValue(false);
+
+        await expect(service.remove('test-id')).rejects.toMatchObject({
+          response: { code: 'INBOUND_DELETE_FAILED' },
+        });
+        expect(subRepo.remove).not.toHaveBeenCalled();
+      },
+    );
+
+    it('принудительно удаляет подписку и продолжает очистку после ошибок', async () => {
+      mockSubRepo.findOne.mockResolvedValue(subWithInbounds);
+      mockXuiService.deleteInbound
+        .mockRejectedValueOnce(new Error('Panel unavailable'))
+        .mockResolvedValueOnce(false);
+
+      await service.remove('test-id', true);
+
+      expect(xuiService.deleteInbound).toHaveBeenCalledTimes(2);
       expect(subRepo.remove).toHaveBeenCalledWith(subWithInbounds);
     });
 

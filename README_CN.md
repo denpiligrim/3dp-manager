@@ -1,244 +1,117 @@
-[Русский](/README.md) | [English](/README_EN.md) | [فارسی](/README_IR.md) | [Türkmençe](/README_TK.md)
+[Русский](README.md) · [English](README_EN.md) · [فارسی](README_IR.md) · [Türkmençe](README_TK.md)
 
 <p><img src="https://denpiligrim.ru/storage/images/3dp-manager.png" alt="3dp-manager preview"></p>
 
-![Version](https://img.shields.io/badge/version-2.2.0-blue.svg) ![Downloads](https://img.shields.io/badge/downloads-5.1k-blue) [![License](https://img.shields.io/badge/license-GPL%20V3-blue.svg?longCache=true)](https://www.gnu.org/licenses/gpl-3.0) [![Telegram](https://img.shields.io/badge/Telegram-26A5E4?style=flat&logo=telegram&logoColor=white)](https://t.me/denpiligrim_web) [![YouTube Channel Subscribers](https://img.shields.io/youtube/channel/subscribers/UCOv2tFFYDY4mXOM60PVz8zw)](https://www.youtube.com/@denpiligrim)
+![Version](https://img.shields.io/badge/version-3.0.0-blue.svg) ![Downloads](https://img.shields.io/badge/downloads-7k-blue) [![License](https://img.shields.io/badge/license-GPL%20V3-blue.svg?longCache=true)](https://www.gnu.org/licenses/gpl-3.0) [![Telegram](https://img.shields.io/badge/Telegram-26A5E4?style=flat&logo=telegram&logoColor=white)](https://t.me/denpiligrim_web) [![YouTube](https://img.shields.io/badge/DenPiligrim-11k-red?style=flat&logo=youtube)](https://www.youtube.com/@denpiligrim)
 
 # 3DP-MANAGER
 
-3DP-MANAGER 是一个用于为 [3x-ui](https://github.com/MHSanaei/3x-ui) 面板自动生成 inbound、创建统一订阅、管理多个 3x-ui 节点，并配置从中间服务器到源服务器的 relay 转发的工具。从 2.0.0 版本开始，项目提供图形界面和简单的用户设置。
-
-**支持项目**
-
-- 银行转账：
-  - :credit_card: MIR 卡：`2204320436318077`
-  - :credit_card: MasterCard：`5395452209474530`
-- 电子钱包：
-  - :moneybag: YooMoney：`4100116897060652`
-  - :moneybag: PayPal：`vasiljevdenisx@gmail.com`
-- 加密货币：
-  - :coin: USDT | ETH (ERC20 | BEP20)：`0x6fe140040f6Cdc1E1Ff2136cd1d60C0165809463`
-  - :coin: USDT | TRX (TRC20)：`TEWxXmJxvkAmhshp7E61XJGHB3VyM9hNAb`
-  - :coin: Bitcoin：`bc1qctntwncsv2yn02x2vgnkrqm00c4h04c0afkgpl`
-  - :coin: TON：`UQCZ3MiwyYHXftPItMMzJRYRiKHugr16jFMq2nfOQOOoemLy`
-  - :coin: Bybit ID：`165292278`
-
-## 描述
-
-该工具的主要目标是让您的流量看起来不那么单一。3DP-MANAGER 会按设定间隔生成一组具有不同参数的连接：
-
-- 协议：`vless`、`vmess`、`shadowsocks`、`hysteria2`、`trojan`；
-- 端口：固定的 `443`、`8443`，以及 `10000-60000` 范围内的随机端口；
-- 传输：`tcp`、`websocket`、`grpc`、`xhttp`；
-- SNI 可从域名白名单中选择，也可以手动指定；
-- 每个 inbound 都可以单独设置节点、relay 服务器、端口和旗帜。
-
-所有连接会合并到一个具有静态 URL 的订阅中。3DP-MANAGER 通过 `3x-ui` 面板的公开 API 工作，不会直接干预面板内部。
-
-次要目标是提高连接稳定性：客户端会收到多个连接选项，并可选择其中任意一个。一个订阅可以包含来自不同节点的 inbound、relay 服务器，以及作为自定义连接添加的外部链接。
-
-此外，3DP-MANAGER 也可用于级联部署。转发服务会把订阅和流量转发配置到选定节点。
-
-建议：
-
-- 为订阅使用 HTTPS（域名 + SSL 证书）。
-- 生成间隔设置为不少于 10 分钟；为了稳定性，建议每天一次（1440 分钟）。
-- 在客户端设置更频繁的自动更新，例如每小时一次，以便与服务器保持同步。
+通过 [3x-ui](https://github.com/MHSanaei/3x-ui) API 管理连接和订阅的 Web 应用。它将多个节点的入站连接合并为一个固定 URL 的订阅，支持手动或定时更新。
 
 ## 功能
 
-- 为一个或多个订阅生成多样化连接
-- 创建具有静态 URL 的统一订阅
-- 管理多个 `3x-ui` 节点
-- 支持使用登录名/密码或 token 进行节点认证
-- 根据面板 URL 自动检测节点 IP、国家和旗帜
-- 可为每个 inbound 选择节点、relay 服务器、旗帜、SNI 和端口
-- 支持固定端口或 `random`
-- 支持自定义连接：可将现成的外部链接加入订阅
-- 可为 Hysteria2 UDP 单独指定 `fullchain.pem` 和 `privkey.pem` 路径
-- 支持自定义域名 `whitelist`
-- 可选的自动 relay 转发配置
-- Web UI 可通过 HTTP 或 HTTPS 安装：Let's Encrypt、自签名证书或自定义证书
+- 管理多个 3x-ui 节点，支持令牌或用户名和密码认证。
+- 为每个入站连接单独设置节点、relay 中继服务器、端口、旗帜和名称。
+- 使用 3x-ui Clients 中的现有客户端，或自动创建客户端。
+- 添加外部连接链接以及 Happ 和 INCY 路由配置。
+- 设置订阅备注、支持链接和网站链接，查看流量统计和到期信息。
+- SNI 域名列表支持导入、导出和自动发现。创建节点或 relay 时自动添加其域名，跳过 IP 地址。
+- 在后台生成和删除连接，限制负载，支持重试和操作日志。
 
-## 要求
+## 环境要求
 
-- Ubuntu 20.04 或更高版本，Debian 12.11 或更高版本
-- `3x-ui` 面板 v2.8.4 或更高版本
-- 服务器 root 权限
-- Docker 和 Docker Compose；如果缺失，安装脚本会尝试自动安装
-- 域名 + SSL 证书（可选）
-
----
+- Ubuntu 或 Debian 服务器；运行安装脚本需要 root 权限。
+- Docker 和 Docker Compose；若未安装，安装程序会自动安装。
+- 一个或多个具有可用入站连接 API 和 Clients API 的 3x-ui 面板。协议和令牌的支持情况取决于面板版本。
+- 配置 relay 需要中继服务器的 SSH 访问权限。
+- TLS 入站连接需要在相应节点上准备证书和私钥。
 
 ## 安装
 
-必须先安装 `3x-ui` 控制面板。可使用以下命令安装：`bash <(curl -Ls https://raw.githubusercontent.com/mhsanaei/3x-ui/master/install.sh)`
-
-在服务器上安装项目：
+在服务器上以 root 身份运行：
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/install.sh)
 ```
 
-安装过程中，脚本会：
+安装程序会在 `/opt/3dp-manager` 中部署 PostgreSQL、后端和前端。可选择 HTTP，或使用 Let's Encrypt、自有证书或自签名证书的 HTTPS。安装完成后会显示界面地址、端口、用户名和密码。登录后，请在**设置（Настройки）**中修改密码。
 
-- 检查操作系统、root 权限、Docker 和 Docker Compose；
-- 如果内存较低且没有 swap，则创建 2 GB 的 swap 文件；
-- 询问 Web UI 访问模式：
-  - 通过 Let's Encrypt 使用 HTTPS；
-  - 使用自签名证书的 HTTPS；
-  - 使用自有证书的 HTTPS；
-  - 不加密的 HTTP；
-- 生成随机 Web UI 端口；
-- 生成管理员登录名和密码；
-- 部署 `postgres`、`backend` 和 `frontend` 容器。
+## 配置
 
-安装完成后，终端会显示 URL、登录名和密码。请立即在 3DP-MANAGER 设置中修改密码。
+1. 在**节点（Ноды）**中添加 3x-ui 面板 URL、认证信息、IP 地址和旗帜。系统会自动识别 IP 和国家，也可手动修改。主节点作为默认节点。
+2. 如需中继，在 **Relay 服务器（Relay серверы）**中添加中间服务器，选择目标节点，并通过界面安装转发。Relay 主机可以使用域名或 IP 地址。
+3. 在**域名（Домены）**中配置 Reality 连接使用的 SNI 列表。
+4. 在**订阅（Подписки）**中填写基本信息、添加入站连接，并按需添加路由配置。每个订阅最多包含 20 个项目。
+5. 保存订阅并开始生成。将订阅 URL 复制到客户端应用中。地址格式为 `/bus/<UUID>`，轮换时保持不变。
 
-<sup>简要说明：运行交互式安装脚本，准备环境并部署项目容器。</sup>
+**客户端 ID** 字段可填写现有 3x-ui 客户端的 ID、email 或名称。该客户端必须在所有选定节点上可用。留空时，应用会自动创建客户端。客户端标识显示在订阅名称下方。
+
+要定时生成连接，请为所需订阅启用自动轮换，并设置不少于 10 分钟的统一间隔。可以手动更新单个订阅，也可以更新所有已启用自动轮换的有效订阅。
+
+## 连接类型
+
+| 类型 | 传输与安全 |
+| --- | --- |
+| `vless-tcp-reality` | VLESS TCP + Reality |
+| `vless-xhttp-reality` | VLESS XHTTP + Reality |
+| `vless-xhttp-get` | VLESS XHTTP，`packet-up`，GET 上行，无 TLS |
+| `vless-grpc-reality` | VLESS gRPC + Reality |
+| `vless-ws` | VLESS WebSocket + TLS，路径 `/ws` |
+| `vmess-tcp` | VMess TCP |
+| `shadowsocks-tcp` | Shadowsocks TCP |
+| `trojan-tcp-reality` | Trojan TCP + Reality |
+| `hysteria2-udp` | Hysteria2 UDP + TLS，Salamander |
+| `custom` | 现有外部连接链接 |
+
+端口可设为 `1` 至 `65535` 之间的整数，或设为 `random`，从 `10000–59999` 范围中选择。该端口必须在节点上可访问；使用转发时，relay 上也必须开放相应端口。
+
+Reality 的 SNI 可从域名列表中选择具体域名或 `random`。WebSocket 和 Hysteria2 使用节点的域名或 IP 地址作为 SNI，WebSocket 同时将该地址用作 Host。Relay 改变连接目标地址，但 WebSocket 的 Host 和 SNI 仍使用节点地址。
+
+Reality 和 VLESS WebSocket 支持选择 fingerprint，默认值为 `firefox`。
+
+### WebSocket 和 Hysteria2 证书
+
+证书和私钥的默认路径由节点地址决定：
+
+| 节点地址 | 证书 | 私钥 |
+| --- | --- | --- |
+| 域名，例如 `second.denpiligrim.ru` | `/root/cert/second.denpiligrim.ru/fullchain.pem` | `/root/cert/second.denpiligrim.ru/privkey.pem` |
+| IPv4 或 IPv6 | `/root/cert/ip/fullchain.pem` | `/root/cert/ip/privkey.pem` |
+
+可在入站连接设置中修改路径。文件必须存在于节点上；应用将这些路径传递给 3x-ui。
+
+## 后台任务与日志
+
+入站连接生成、订阅和节点删除、relay 删除，以及转发安装或移除均在后台执行。界面显示任务状态，并防止重复启动任务。
+
+批量轮换逐个处理订阅，并在订阅之间让其他排队任务执行。创建或删除入站连接时遇到临时错误，最多尝试三次，并在重试前延迟和检查操作结果。单个订阅失败不会中止整个批次。
+
+**日志（Журнал）**显示进度、结果和重试记录，支持按流程和状态筛选，每页 20 条记录，并自动刷新。已完成的记录最多保留 30 天，上限为 50,000 条事件。
+
+队列在应用重启后仍会保留。重启前正在执行的任务会标记为已中断，不会自动重试；再次启动前应先检查节点上的实际结果。
+
+延迟设置、队列行为和 API 变更见[后台操作文档](docs/background-operations.md)（俄语）。
 
 ## 更新
 
-更新到最新版本：
+使用安装脚本部署的实例可运行：
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/update.sh)
 ```
 
-<sup>简要说明：拉取最新更改，应用兼容的配置修复，更新容器并重启服务。</sup>
+脚本会将数据库备份到 `/opt/3dp-manager/backups`，启用数据库迁移并更新容器。请保留 `.env` 和 `docker-compose.yml`，其中包含现有实例的配置。
 
-## 删除
+自行部署时，应在更新后端的同时更新数据库结构。后台队列需要迁移 `1793300000000-add-operations`；详情见[数据库更新](docs/background-operations.md#обновление-бд)（俄语）。
 
-彻底删除服务：
+## 卸载
+
+以下命令会删除项目容器、数据库卷和 `/opt/3dp-manager` 目录，包括该目录内的备份：
 
 ```bash
 bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/delete.sh)
 ```
 
-<sup>简要说明：删除容器和配置文件，将系统恢复到安装前状态。</sup>
+## 反馈
 
----
-
-## 首次登录
-
-管理员登录名和密码会在安装结束时输出。如需再次查看：
-
-```bash
-grep -E "ADMIN_LOGIN|ADMIN_PASSWORD" /opt/3dp-manager/docker-compose.yml | sed 's/^[ \t]*//; s/^- //'
-```
-
-Web UI 可通过安装脚本显示的地址访问，例如：
-
-- HTTPS：`https://example.com:PORT`；
-- HTTP：`http://SERVER_IP:PORT`。
-
-如果启用了 `ufw`，安装脚本会开放 inbound 工作端口范围：TCP/UDP 的 `443`、`8443` 和 `10000-60000`。
-
----
-
-## 节点
-
-**节点** 页面用于连接一个或多个 `3x-ui` 面板。
-
-每个节点需要设置：
-
-- 名称；
-- `3x-ui` 面板 URL；
-- 节点 IP；
-- 旗帜/国家；
-- 认证类型：`password` 或 `token`；
-- 是否为主节点。
-
-输入 URL 后，应用会尝试自动检测节点 IP 和国家。旗帜会用于订阅中的连接名称，方便客户端区分服务器。
-
-> [!NOTE]
-> 主节点会作为订阅、inbound 和 relay 服务器的默认值。
-
----
-
-## 订阅
-
-**订阅** 页面用于管理静态订阅 URL 和 inbound 组成。
-
-每个 inbound 可配置：
-
-- 连接类型；
-- 节点；
-- relay 服务器；
-- 旗帜；
-- 端口：`1-65535` 的具体数字或 `random`；
-- SNI：具体域名或 `random`；
-- `custom` 类型的现成外部链接。
-
-对于 `hysteria2-udp`，可以单独指定证书和密钥路径：
-
-- `certificateFile`，例如 `/root/cert/example.com/fullchain.pem`；
-- `keyFile`，例如 `/root/cert/example.com/privkey.pem`。
-
-如果端口或 SNI 设置为 `random`，轮换时会从可用端口范围或域名白名单中选择值。
-
----
-
-## 安装转发服务
-
-> [!WARNING]
-> 转发服务运行在中间服务器上
-
-转发服务会把中间服务器的入站端口代理到选定节点。在 Web UI 中，这些服务器在 **Relay 服务器** 页面配置，并可绑定到具体节点。
-
-Relay 服务器可以通过 IP 或域名添加。如果提供域名，backend 会尝试自动解析其 IP。
-
-如需在中间服务器上手动安装 forwarding，请将 `IP_ADDRESS` 替换为源节点 IP：
-
-```bash
-sudo ORIGIN_IP="IP_ADDRESS" bash -c "$(curl -sSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/forwarding_install.sh)"
-```
-
-<sup>简要说明：添加转发规则。</sup>
-
-## 删除转发
-
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/denpiligrim/3dp-manager/main/forwarding_delete.sh)
-```
-
-<sup>简要说明：删除转发规则。删除后，请执行 `ufw reload` 重新加载防火墙，并执行 `reboot` 重启系统以使更改生效。</sup>
-
----
-
-## 从多订阅收集域名
-
-该工具会从订阅中提取域名，并为生成器构建 `whitelist`。
-
-```bash
-node get_domains.js
-```
-
-<sup>简要说明：在脚本中添加多订阅链接并运行命令，输出将是域名列表。运行脚本需要 `Node.js`。</sup>
-
----
-
-## 注意事项和当前限制
-
-- 共享域名列表并非适用于所有服务商，因此建议准备并使用自己的 whitelist。
-
----
-
-## 贡献
-
-欢迎任何贡献！简单的贡献流程：
-
-1. 在 GitHub 上 fork 仓库。
-2. 创建有意义的分支名，例如 `feature/add-README` 或 `fix/whitelist-load`。
-3. 修改代码，并在 commit 中添加简短说明。
-4. 如有本地检查，请运行它们。
-5. 将分支推送到你的 fork，并向主仓库创建 Pull Request。
-
-<sup>建议：在 PR 中说明更改、目标和测试步骤。如果更改较大，请拆分为较小的 commit。</sup>
-
----
-
-## 讨论
-
-- Telegram: [@denpiligrim_web](https://t.me/denpiligrim_web)
-- 本仓库的 Issues 区
+[Issues](https://github.com/denpiligrim/3dp-manager/issues) · [Telegram](https://t.me/denpiligrim_web) · [GPL-3.0 许可证](LICENSE)

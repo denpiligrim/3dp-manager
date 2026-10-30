@@ -18,7 +18,7 @@ export interface XuiInboundSettings {
     limitIp?: number;
     totalGB?: number;
     expiryTime?: number;
-    tgId?: string;
+    tgId?: string | number;
     subId?: string;
     reset?: number;
   }>;
@@ -48,15 +48,22 @@ export interface XuiStreamSettings {
   };
   wsSettings?: {
     path: string;
+    host?: string;
     headers?: {
       Host?: string;
     };
+  };
+  tlsSettings?: {
+    serverName?: string;
+    alpn?: string[];
+    settings?: { fingerprint?: string; allowInsecure?: boolean };
   };
   grpcSettings?: {
     serviceName: string;
     authority?: string;
   };
   xhttpSettings?: {
+    [key: string]: unknown;
     path: string;
     host?: string;
     mode?: string;

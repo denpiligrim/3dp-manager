@@ -32,6 +32,7 @@ export interface XuiInboundRaw {
 }
 
 export interface XuiInboundClient {
+  auth?: string;
   id?: string;
   flow?: string;
   email?: string;
@@ -39,7 +40,7 @@ export interface XuiInboundClient {
   totalGB?: number;
   expiryTime?: number;
   enable?: boolean;
-  tgId?: string;
+  tgId?: string | number;
   subId?: string;
   reset?: number;
   password?: string;

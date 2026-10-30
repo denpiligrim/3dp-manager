@@ -27,6 +27,11 @@ import { NodesModule } from './nodes/nodes.module';
 import { AddNodesAndNodeRelations1765960000000 } from './migrations/1765960000000-add-nodes-and-node-relations';
 import { AddNodeIpFlagAndInboundLabels1770000000000 } from './migrations/1770000000000-add-node-ip-flag-and-inbound-labels';
 import { AddNodeDomain1770000000001 } from './migrations/1770000000001-add-node-domain';
+import { AddSubscriptionClient1793200000000 } from './migrations/1793200000000-add-subscription-client';
+import { AddSubscriptionMetadata1793200000001 } from './migrations/1793200000001-add-subscription-metadata';
+import { AddOperations1793300000000 } from './migrations/1793300000000-add-operations';
+import { Operation } from './operations/operation.entity';
+import { OperationsModule } from './operations/operations.module';
 
 @Module({
   imports: [
@@ -46,16 +51,28 @@ import { AddNodeDomain1770000000001 } from './migrations/1770000000001-add-node-
       username: process.env.DB_USERNAME,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      entities: [Setting, Domain, Subscription, Inbound, Tunnel, Node],
+      entities: [
+        Setting,
+        Domain,
+        Subscription,
+        Inbound,
+        Tunnel,
+        Node,
+        Operation,
+      ],
       migrations: [
         AddNodesAndNodeRelations1765960000000,
         AddNodeIpFlagAndInboundLabels1770000000000,
         AddNodeDomain1770000000001,
+        AddSubscriptionClient1793200000000,
+        AddSubscriptionMetadata1793200000001,
+        AddOperations1793300000000,
       ],
       synchronize: process.env.DB_SYNCHRONIZE !== 'false',
       migrationsRun: process.env.DB_MIGRATIONS_RUN === 'true',
     }),
     SessionModule,
+    OperationsModule,
     XuiModule,
     InboundsModule,
     RotationModule,

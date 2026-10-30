@@ -38,6 +38,10 @@ export class HttpExceptionFilter implements ExceptionFilter {
       response.status(status).json({
         statusCode: status,
         message: errorMessage,
+        ...(typeof exceptionResponse === 'object' &&
+        typeof (exceptionResponse as { code?: unknown }).code === 'string'
+          ? { code: (exceptionResponse as { code: string }).code }
+          : {}),
         timestamp: new Date().toISOString(),
         path: request.url,
       });

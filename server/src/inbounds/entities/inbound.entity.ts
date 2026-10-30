@@ -11,6 +11,9 @@ export class Inbound {
   @Column()
   xuiId: number;
 
+  @Column({ default: false })
+  isPending: boolean;
+
   @Column()
   port: number;
 

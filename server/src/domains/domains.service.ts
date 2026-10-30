@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, OnModuleInit } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { Domain } from './entities/domain.entity';
 
 @Injectable()
@@ -19,7 +19,7 @@ export class DomainsService implements OnModuleInit {
 
     if (count === 0) {
       const defaultDomains = [
-        'ya.ru',
+        'yastatic.net',
         'vk.com',
         'ok.ru',
         'gosuslugi.ru',
@@ -50,6 +50,24 @@ export class DomainsService implements OnModuleInit {
 
     const domain = this.repo.create({ name: normalized });
     return this.repo.save(domain);
+  }
+
+  async addHostDomain(host: string | undefined, manager: EntityManager) {
+    const name = this.normalizeImportedDomain(host || '');
+    if (!name) return;
+    const repo = manager.getRepository(Domain);
+    const existing = await repo
+      .createQueryBuilder('domain')
+      .where('LOWER(domain.name) = LOWER(:name)', { name })
+      .getOne();
+    if (existing) return;
+    await repo
+      .createQueryBuilder()
+      .insert()
+      .into(Domain)
+      .values({ name, isEnabled: true })
+      .orIgnore()
+      .execute();
   }
 
   async findAll(page: number = 1, limit: number = 10) {

@@ -1,9 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { act, render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom'
 import SubscriptionsPage from '../../src/pages/SubscriptionsPage'
 import { ThemeProvider } from '../../src/ThemeContext'
 import { AuthProvider } from '../../src/auth/AuthContext'
+import TaskNotification from '../../src/components/TaskNotification'
 
 const mockGet = vi.fn()
 const mockPost = vi.fn()
@@ -42,7 +43,8 @@ const setupMockGet = (overrides?: {
   mockGet.mockImplementation((url: string) => {
     if (url === '/subscriptions') return Promise.resolve({ data: overrides?.subscriptions || [] })
     if (url === '/tunnels') return Promise.resolve({ data: overrides?.tunnels || [] })
-    if (url === '/domains/all') return Promise.resolve({ data: overrides?.domains || [] })
+    if (url === '/nodes') return Promise.resolve({ data: [{ id: 'node-1', name: 'Main', isMain: true, url: 'https://node.example' }] })
+    if (url === '/domains/all') return Promise.resolve({ data: overrides?.domains || [{ name: 'example.com', isEnabled: true }] })
     return Promise.resolve({ data: {} })
   })
 }
@@ -57,6 +59,22 @@ const renderSubscriptionsPage = () => {
       </ThemeProvider>
     </BrowserRouter>
   )
+}
+
+const goToInbounds = async () => {
+  const name = screen.queryByLabelText('Имя подписки') as HTMLInputElement | null
+  if (name) {
+    if (!name.value) fireEvent.change(name, { target: { value: 'Test Subscription' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
+    await screen.findByText('Добавить инбаунд')
+  }
+}
+
+const goToRouting = async () => {
+  await goToInbounds()
+  const next = screen.queryByRole('button', { name: 'Далее' })
+  if (next) fireEvent.click(next)
+  await screen.findByText('Добавить роутинг INCY')
 }
 
 describe('SubscriptionsPage', () => {
@@ -195,6 +213,59 @@ describe('SubscriptionsPage', () => {
   })
 
   describe('Диалог создания подписки', () => {
+    it('проводит через три шага и сохраняет основные данные при возврате', async () => {
+      setupMockGet()
+      mockPost.mockResolvedValue({ data: {} })
+      renderSubscriptionsPage()
+      fireEvent.click(await screen.findByText('Создать'))
+      fireEvent.change(await screen.findByLabelText('Имя подписки'), { target: { value: 'Мой VPN' } })
+      fireEvent.change(screen.getByLabelText('Примечание (необязательно)'), { target: { value: 'Новости сервиса' } })
+      fireEvent.change(screen.getByLabelText('Ссылка на поддержку (необязательно)'), { target: { value: 'https://t.me/support' } })
+      fireEvent.change(screen.getByLabelText('Сайт (необязательно)'), { target: { value: 'https://example.com' } })
+      expect(screen.queryByText('Добавить инбаунд')).not.toBeInTheDocument()
+      expect(screen.queryByText('Сохранить')).not.toBeInTheDocument()
+      await goToInbounds()
+      expect(screen.queryByText('Добавить роутинг INCY')).not.toBeInTheDocument()
+      fireEvent.click(screen.getByRole('button', { name: 'Назад' }))
+      expect(await screen.findByLabelText('Примечание (необязательно)')).toHaveValue('Новости сервиса')
+      expect(screen.getByLabelText('Имя подписки')).toHaveValue('Мой VPN')
+      await goToRouting()
+      expect(screen.queryByText('Добавить инбаунд')).not.toBeInTheDocument()
+      expect(mockPost).not.toHaveBeenCalled()
+      fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }))
+      await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/subscriptions', expect.objectContaining({ name: 'Мой VPN', note: 'Новости сервиса', supportUrl: 'https://t.me/support', websiteUrl: 'https://example.com' })))
+    })
+
+    it('не пропускает некорректный адрес сайта на следующий шаг', async () => {
+      setupMockGet()
+      renderSubscriptionsPage()
+      fireEvent.click(await screen.findByText('Создать'))
+      fireEvent.change(await screen.findByLabelText('Имя подписки'), { target: { value: 'VPN' } })
+      fireEvent.change(screen.getByLabelText('Сайт (необязательно)'), { target: { value: 'javascript:alert(1)' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Далее' }))
+      expect(screen.getByText('Введите полный адрес сайта (https://...)')).toBeInTheDocument()
+      expect(mockPost).not.toHaveBeenCalled()
+    })
+
+    it('добавляет роутинг INCY отдельной кнопкой и отправляет профиль при сохранении', async () => {
+      setupMockGet({ subscriptions: [{
+        id: '1', name: 'INCY subscription', uuid: 'abc', inbounds: [],
+        inboundsConfig: [{ type: 'custom', link: 'vless://existing' }],
+      }] })
+      mockPut.mockResolvedValue({})
+      renderSubscriptionsPage()
+      fireEvent.click(await screen.findByTestId('icon-MoreVert'))
+      fireEvent.click(await screen.findByText('Редактировать'))
+      await goToRouting()
+      fireEvent.click(screen.getByText('Добавить роутинг INCY'))
+      const profile = 'https://example.com/profile.json'
+      fireEvent.change(await screen.findByLabelText('Профиль INCY (JSON, base64, URL или ссылка)'), { target: { value: profile } })
+      fireEvent.click(screen.getByRole('button', { name: 'Сохранить', exact: true }))
+      await waitFor(() => expect(mockPut).toHaveBeenCalledWith('/subscriptions/1', expect.objectContaining({
+        inboundsConfig: expect.arrayContaining([{ type: 'incy-routing', routingProfile: profile }]),
+      })))
+    })
+
     it('должен открывать диалог при клике на "Создать"', async () => {
       setupMockGet()
       renderSubscriptionsPage()
@@ -241,8 +312,9 @@ describe('SubscriptionsPage', () => {
       const createButton = await screen.findByText('Создать')
       fireEvent.click(createButton)
 
+      await goToInbounds()
       await waitFor(() => {
-        expect(screen.getByText('Инбаунды (9/20)')).toBeInTheDocument()
+        expect(screen.getByText('Инбаунды (10; всего 10/20)')).toBeInTheDocument()
       })
     })
 
@@ -268,7 +340,7 @@ describe('SubscriptionsPage', () => {
       const createButton = await screen.findByText('Создать')
       fireEvent.click(createButton)
 
-      const saveButton = await screen.findByText('Сохранить')
+      const saveButton = screen.getByRole('button', { name: 'Далее' })
       fireEvent.click(saveButton)
 
       await waitFor(() => {
@@ -285,8 +357,9 @@ describe('SubscriptionsPage', () => {
       const createButton = await screen.findByText('Создать')
       fireEvent.click(createButton)
 
+      await goToInbounds()
       await waitFor(() => {
-        expect(screen.getByText('Инбаунды (9/20)')).toBeInTheDocument()
+        expect(screen.getByText('Инбаунды (10; всего 10/20)')).toBeInTheDocument()
       })
     })
 
@@ -310,11 +383,12 @@ describe('SubscriptionsPage', () => {
       const createButton = await screen.findByText('Создать')
       fireEvent.click(createButton)
 
+      await goToInbounds()
       const addButton = await screen.findByText('Добавить инбаунд')
       fireEvent.click(addButton)
 
       await waitFor(() => {
-        expect(screen.getByText('Инбаунды (10/20)')).toBeInTheDocument()
+        expect(screen.getByText('Инбаунды (11; всего 11/20)')).toBeInTheDocument()
       })
     })
 
@@ -325,11 +399,12 @@ describe('SubscriptionsPage', () => {
       const createButton = await screen.findByText('Создать')
       fireEvent.click(createButton)
 
+      await goToInbounds()
       const removeAllButton = await screen.findByText('Удалить все')
       fireEvent.click(removeAllButton)
 
       await waitFor(() => {
-        expect(screen.getByText('Инбаунды (1/20)')).toBeInTheDocument()
+        expect(screen.getByText('Инбаунды (0; всего 0/20)')).toBeInTheDocument()
       })
     })
 
@@ -340,6 +415,7 @@ describe('SubscriptionsPage', () => {
       const createButton = await screen.findByText('Создать')
       fireEvent.click(createButton)
 
+      await goToInbounds()
       for (let i = 0; i < 11; i++) {
         const addButton = screen.getByText('Добавить инбаунд')
         fireEvent.click(addButton)
@@ -353,6 +429,20 @@ describe('SubscriptionsPage', () => {
   })
 
   describe('Сохранение подписки', () => {
+    it.each(['', ' shared-client '])('передаёт необязательный ID клиента (%s)', async (identifier) => {
+      setupMockGet()
+      mockPost.mockResolvedValue({ data: {} })
+      renderSubscriptionsPage()
+      fireEvent.click(await screen.findByText('Создать'))
+      fireEvent.change(await screen.findByLabelText('Имя подписки'), { target: { value: 'Shared' } })
+      const field = screen.getByLabelText('ID клиента (необязательно)')
+      expect(field).toHaveValue('')
+      fireEvent.change(field, { target: { value: identifier } })
+      await goToRouting()
+      fireEvent.click(screen.getByText('Сохранить'))
+      await waitFor(() => expect(mockPost).toHaveBeenCalledWith('/subscriptions', expect.objectContaining({ clientId: identifier.trim() })))
+    })
+
     it('должен создавать новую подписку', async () => {
       setupMockGet()
       mockPost.mockResolvedValue({})
@@ -365,6 +455,7 @@ describe('SubscriptionsPage', () => {
       const nameField = await screen.findByLabelText('Имя подписки')
       fireEvent.change(nameField, { target: { value: 'New Sub' } })
 
+      await goToRouting()
       const saveButton = screen.getByText('Сохранить')
       fireEvent.click(saveButton)
 
@@ -387,6 +478,7 @@ describe('SubscriptionsPage', () => {
       const nameField = await screen.findByLabelText('Имя подписки')
       fireEvent.change(nameField, { target: { value: 'New Sub' } })
 
+      await goToRouting()
       const saveButton = screen.getByText('Сохранить')
       fireEvent.click(saveButton)
 
@@ -407,6 +499,7 @@ describe('SubscriptionsPage', () => {
       const nameField = await screen.findByLabelText('Имя подписки')
       fireEvent.change(nameField, { target: { value: 'New Sub' } })
 
+      await goToRouting()
       const saveButton = screen.getByText('Сохранить')
       fireEvent.click(saveButton)
 
@@ -417,6 +510,44 @@ describe('SubscriptionsPage', () => {
   })
 
   describe('Редактирование подписки', () => {
+    it('saves WS TLS fingerprint and certificate paths while deriving SNI from the node', async () => {
+      setupMockGet({ subscriptions: [{ id: 'ws-sub', name: 'WS', uuid: 'ws-uuid', inbounds: [], inboundsConfig: [{ type: 'vless-ws', nodeId: 'node-1', port: 443, sni: 'random', fingerprint: 'chrome' }] }] })
+      mockPut.mockResolvedValue({})
+      renderSubscriptionsPage()
+      fireEvent.click(await screen.findByTestId('icon-MoreVert'))
+      fireEvent.click(await screen.findByText('Редактировать'))
+      await goToInbounds()
+      expect(screen.getByLabelText('Сертификат')).toHaveValue('/root/cert/node.example/fullchain.pem')
+      expect(screen.getByLabelText('Приватный ключ')).toHaveValue('/root/cert/node.example/privkey.pem')
+      fireEvent.mouseDown(screen.getByLabelText('Fingerprint'))
+      fireEvent.click(await screen.findByRole('option', { name: 'safari' }))
+      expect(screen.queryByText('SNI')).not.toBeInTheDocument()
+      fireEvent.change(screen.getByLabelText('Сертификат'), { target: { value: '/custom/cert.pem' } })
+      fireEvent.change(screen.getByLabelText('Приватный ключ'), { target: { value: '/custom/key.pem' } })
+      await goToRouting()
+      fireEvent.click(screen.getByText('Сохранить'))
+      await waitFor(() => expect(mockPut).toHaveBeenCalledWith('/subscriptions/ws-sub', expect.objectContaining({ inboundsConfig: [expect.objectContaining({ type: 'vless-ws', fingerprint: 'safari', certificateFile: '/custom/cert.pem', keyFile: '/custom/key.pem', sni: undefined })] })))
+    })
+
+    it.each(['happ', 'incy'])('сохраняет профиль %s без порта и ноды', async (scheme) => {
+      const profile = '{"Name":"Test"}'
+      setupMockGet({ subscriptions: [{
+        id: '1', name: 'Happ', uuid: 'abc-123', inbounds: [],
+        inboundsConfig: [{ type: `${scheme}-routing`, routingProfile: profile }],
+      }] })
+      mockPut.mockResolvedValue({})
+      renderSubscriptionsPage()
+      fireEvent.click(await screen.findByTestId('icon-MoreVert'))
+      fireEvent.click(await screen.findByText('Редактировать'))
+      await goToRouting()
+      expect(await screen.findByLabelText(scheme === 'incy' ? 'Профиль INCY (JSON, base64, URL или ссылка)' : 'Профиль Happ (JSON, base64 или ссылка)')).toHaveValue(profile)
+      await goToRouting()
+      fireEvent.click(screen.getByText('Сохранить'))
+      await waitFor(() => expect(mockPut).toHaveBeenCalledWith('/subscriptions/1', {
+        name: 'Happ', clientId: '', note: '', supportUrl: '', websiteUrl: '', inboundsConfig: [{ type: `${scheme}-routing`, routingProfile: profile }],
+      }))
+    })
+
     it('должен открывать диалог редактирования', async () => {
       const mockSubs = [
         { id: '1', name: 'Test Sub', uuid: 'abc-123', inbounds: [{ type: 'vless', port: 443, sni: 'example.com' }], isAutoRotationEnabled: true }
@@ -470,6 +601,7 @@ describe('SubscriptionsPage', () => {
       const nameField = await screen.findByLabelText('Имя подписки')
       fireEvent.change(nameField, { target: { value: 'Updated Sub' } })
 
+      await goToRouting()
       const saveButton = screen.getByText('Сохранить')
       fireEvent.click(saveButton)
 
@@ -498,6 +630,7 @@ describe('SubscriptionsPage', () => {
       const nameField = await screen.findByLabelText('Имя подписки')
       fireEvent.change(nameField, { target: { value: 'Updated Sub' } })
 
+      await goToRouting()
       const saveButton = screen.getByText('Сохранить')
       fireEvent.click(saveButton)
 
@@ -508,6 +641,51 @@ describe('SubscriptionsPage', () => {
   })
 
   describe('Удаление подписки', () => {
+    it('closes confirmation and blocks repeat actions until deletion finishes', async () => {
+      let finish!: (value: unknown) => void
+      mockDelete.mockReset()
+      mockDelete.mockReturnValue(new Promise((resolve) => { finish = resolve }))
+      setupMockGet({ subscriptions: [{ id: '1', name: 'Test Sub', uuid: 'abc', inbounds: [] }] })
+      renderSubscriptionsPage()
+      render(<TaskNotification />)
+      fireEvent.click(await screen.findByTestId('icon-MoreVert'))
+      fireEvent.click(await screen.findByText('Удалить'))
+      const confirm = screen.getByRole('button', { name: 'Удалить', exact: true })
+      try {
+        fireEvent.click(confirm)
+        fireEvent.click(confirm)
+        expect(mockDelete).toHaveBeenCalledTimes(1)
+        expect(await screen.findByRole('status')).toHaveTextContent('Выполняется удаление подписки')
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+        expect(screen.getByText('Создать').closest('button')).toBeDisabled()
+      } finally {
+        await act(async () => { finish({}) })
+      }
+      await waitFor(() => expect(screen.getByText('Создать').closest('button')).toBeEnabled())
+    })
+
+    it.each([false, true])('предлагает принудительное удаление или отмену (force=%s)', async (force) => {
+      mockDelete.mockReset()
+      setupMockGet({ subscriptions: [{ id: '1', name: 'Test Sub', uuid: 'abc', inbounds: [] }] })
+      mockDelete.mockRejectedValueOnce({ response: { data: { code: 'INBOUND_DELETE_FAILED', message: 'Инбаунд недоступен' } } }).mockResolvedValueOnce({})
+      renderSubscriptionsPage()
+      fireEvent.click(await screen.findByTestId('icon-MoreVert'))
+      fireEvent.click(await screen.findByText('Удалить'))
+      fireEvent.click(screen.getByRole('button', { name: 'Удалить', exact: true }))
+      const forceButton = await screen.findByRole('button', { name: 'Удалить принудительно' })
+      expect(screen.getByText('Не удалось удалить все инбаунды')).toBeInTheDocument()
+      if (force) {
+        fireEvent.click(forceButton)
+        await waitFor(() => expect(mockDelete).toHaveBeenLastCalledWith('/subscriptions/1?force=true'))
+        expect(await screen.findByText('Подписка удалена')).toBeInTheDocument()
+      } else {
+        fireEvent.click(screen.getByRole('button', { name: 'Отменить' }))
+        await waitFor(() => expect(screen.queryByText('Не удалось удалить все инбаунды')).not.toBeInTheDocument())
+        expect(mockDelete).toHaveBeenCalledTimes(1)
+        expect(screen.getByText('Test Sub')).toBeInTheDocument()
+      }
+    })
+
     it('должен открывать диалог подтверждения удаления', async () => {
       const mockSubs = [
         { id: '1', name: 'Test Sub', uuid: 'abc-123', inbounds: [], isAutoRotationEnabled: true }
@@ -562,7 +740,7 @@ describe('SubscriptionsPage', () => {
       const deleteOption = await screen.findByText('Удалить')
       fireEvent.click(deleteOption)
 
-      const confirmButton = screen.getAllByText('Удалить')[1] as HTMLElement
+      const confirmButton = screen.getByRole('button', { name: 'Удалить', exact: true })
       fireEvent.click(confirmButton)
 
       await waitFor(() => {
@@ -585,12 +763,59 @@ describe('SubscriptionsPage', () => {
       const deleteOption = await screen.findByText('Удалить')
       fireEvent.click(deleteOption)
 
-      const confirmButton = screen.getAllByText('Удалить')[1] as HTMLElement
+      const confirmButton = screen.getByRole('button', { name: 'Удалить', exact: true })
       fireEvent.click(confirmButton)
 
       await waitFor(() => {
         expect(screen.getByText('Подписка удалена')).toBeInTheDocument()
       })
+    })
+  })
+
+  describe('Принудительная ротация', () => {
+    it('closes the new-subscription dialog before generation and sends one request', async () => {
+      setupMockGet()
+      let finish!: (value: unknown) => void
+      const generation = new Promise((resolve) => { finish = resolve })
+      mockPost.mockReset()
+      mockPost.mockImplementation((url: string) => url === '/subscriptions'
+        ? Promise.resolve({ data: { id: 'new-sub' } })
+        : generation)
+      renderSubscriptionsPage()
+      render(<TaskNotification />)
+      fireEvent.click(await screen.findByText('Создать'))
+      fireEvent.change(await screen.findByLabelText('Имя подписки'), { target: { value: 'New Sub' } })
+      await goToRouting()
+      fireEvent.click(screen.getByText('Сохранить'))
+      const generate = await screen.findByRole('button', { name: 'Да', exact: true })
+      await waitFor(() => expect(generate).toBeEnabled())
+      try {
+        fireEvent.click(generate)
+        fireEvent.click(generate)
+        expect(mockPost.mock.calls.filter(([url]) => url === '/rotation/rotate-one/new-sub')).toHaveLength(1)
+        expect(await screen.findByRole('status')).toHaveTextContent('Выполняется генерация инбаундов')
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+      } finally {
+        await act(async () => { finish({ data: { success: true, message: 'Готово' } }) })
+      }
+      expect(await screen.findByText('Готово')).toBeInTheDocument()
+    })
+
+    it.each([false, true])('передаёт выбранный режим после открытия диалога (all=%s)', async (all) => {
+      setupMockGet({ subscriptions: [{ id: '1', name: 'Test Sub', uuid: 'abc', inbounds: [] }] })
+      mockPost.mockResolvedValue({ data: { success: true } })
+      renderSubscriptionsPage()
+      if (all) {
+        fireEvent.click(await screen.findByText('Обновить все'))
+      } else {
+        fireEvent.click(await screen.findByTestId('icon-MoreVert'))
+        fireEvent.click(await screen.findByText('Обновить сейчас'))
+      }
+      fireEvent.click(await screen.findByLabelText('Принудительная ротация'))
+      fireEvent.click(screen.getByRole('button', { name: all ? 'Сгенерировать' : 'Обновить', exact: true }))
+      await waitFor(() => expect(mockPost).toHaveBeenCalledWith(
+        all ? '/rotation/rotate-all?force=true' : '/rotation/rotate-one/1?force=true',
+      ))
     })
   })
 

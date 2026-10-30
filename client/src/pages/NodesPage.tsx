@@ -1,3 +1,4 @@
+import { runTask, usePendingTask } from '../utils/pendingTask';
 import { useCallback, useEffect, useState } from 'react';
 import {
   Alert,
@@ -34,7 +35,6 @@ import {
   Edit,
   Star,
   StarBorder,
-  Sync,
 } from '@mui/icons-material';
 import api from '../api';
 import { nodesApi } from '../features/nodes/api';
@@ -66,14 +66,15 @@ const isValidIp = (value?: string) =>
     /^([0-9a-f]{1,4}:){2,7}[0-9a-f]{1,4}$/i.test(value.trim()));
 
 export default function NodesPage() {
+  const { pending } = usePendingTask();
   const [nodes, setNodes] = useState<NodeRecord[]>([]);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<NodeRecord | null>(null);
   const [form, setForm] = useState<NodePayload>(emptyForm);
-  const [checkingId, setCheckingId] = useState<string | null>(null);
   const [countries, setCountries] = useState<CountryOption[]>([]);
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<NodeRecord | null>(null);
+  const [forceDelete, setForceDelete] = useState(false);
   const [formErrors, setFormErrors] = useState<Partial<Record<keyof NodePayload, string>>>({});
   const [message, setMessage] = useState({
     open: false,
@@ -143,129 +144,120 @@ export default function NodesPage() {
   };
 
   const detectNodeLocation = async () => {
-    const url = form.url.trim();
-    if (!url) return;
+    return runTask("Выполняется определение расположения ноды", async () => {
+      setMessage((prev) => ({ ...prev, open: false }));
+      const url = form.url.trim();
+      if (!url) return;
 
-    setDetectingLocation(true);
-    try {
-      const result = await nodesApi.detectLocation(url.replace(/\/+$/, ''));
-      setForm((prev) => ({
-        ...prev,
-        ip: result.ip || prev.ip,
-        flag: result.flag || prev.flag,
-      }));
-      if (result.country || result.ip) {
-        setMessage({
-          open: true,
-          type: 'success',
-          text: `Определено: ${result.country || 'страна неизвестна'}${result.ip ? `, IP ${result.ip}` : ''}`,
-        });
+      setDetectingLocation(true);
+      try {
+        const result = await nodesApi.detectLocation(url.replace(/\/+$/, ''));
+        setForm((prev) => ({
+          ...prev,
+          ip: result.ip || prev.ip,
+          flag: result.flag || prev.flag,
+        }));
+        if (result.country || result.ip) {
+          setMessage({
+            open: true,
+            type: 'success',
+            text: `Определено: ${result.country || 'страна неизвестна'}${result.ip ? `, IP ${result.ip}` : ''}`,
+          });
+        }
+      } catch {
+        setMessage({ open: true, type: 'error', text: 'Не удалось определить страну ноды' });
+      } finally {
+        setDetectingLocation(false);
       }
-    } catch {
-      setMessage({ open: true, type: 'error', text: 'Не удалось определить страну ноды' });
-    } finally {
-      setDetectingLocation(false);
-    }
+    });
   };
 
   const saveNode = async () => {
-    if (!validateForm(!editing)) {
-      setMessage({ open: true, type: 'error', text: 'Заполните обязательные поля' });
-      return;
-    }
-
-    const payload: NodePayload = {
-      ...form,
-      url: form.url.replace(/\/+$/, ''),
-      ip: form.ip || undefined,
-      flag: form.flag || undefined,
-      login: form.authType === 'password' ? form.login : undefined,
-      password: form.authType === 'password' && form.password ? form.password : undefined,
-      token: form.authType === 'token' && form.token ? form.token : undefined,
-    };
-
-    try {
-      if (editing) {
-        await nodesApi.update(editing.id, payload);
-      } else {
-        await nodesApi.create(payload);
+    return runTask("Выполняется сохранение ноды", async () => {
+      setMessage((prev) => ({ ...prev, open: false }));
+      if (!validateForm(!editing)) {
+        setMessage({ open: true, type: 'error', text: 'Заполните обязательные поля' });
+        return;
       }
 
+      const payload: NodePayload = {
+        ...form,
+        url: form.url.replace(/\/+$/, ''),
+        ip: form.ip || undefined,
+        flag: form.flag || undefined,
+        login: form.authType === 'password' ? form.login : undefined,
+        password: form.authType === 'password' && form.password ? form.password : undefined,
+        token: form.authType === 'token' && form.token ? form.token : undefined,
+      };
+
       setOpen(false);
-      setMessage({
-        open: true,
-        type: 'success',
-        text: editing ? 'Нода обновлена' : 'Нода добавлена',
-      });
-      loadNodes();
-    } catch (error: unknown) {
-      const text =
-        (error as { response?: { data?: { message?: string } } })?.response?.data?.message ||
-        'Не удалось сохранить ноду';
-      setMessage({ open: true, type: 'error', text });
-    }
+      try {
+        if (editing) {
+          await nodesApi.update(editing.id, payload);
+        } else {
+          await nodesApi.create(payload);
+        }
+
+        setOpen(false);
+        setMessage({
+          open: true,
+          type: 'success',
+          text: editing ? 'Нода обновлена' : 'Нода добавлена',
+        });
+        await loadNodes();
+      } catch (error: unknown) {
+        const text =
+          (error as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+          'Не удалось сохранить ноду';
+        setMessage({ open: true, type: 'error', text });
+      }
+    });
   };
 
   const checkFormConnection = async () => {
-    if (!validateForm(true)) {
-      setMessage({ open: true, type: 'error', text: 'Заполните обязательные поля для проверки подключения' });
-      return;
-    }
+    return runTask("Выполняется проверка подключения", async () => {
+      setMessage((prev) => ({ ...prev, open: false }));
+      if (!validateForm(true)) {
+        setMessage({ open: true, type: 'error', text: 'Заполните обязательные поля для проверки подключения' });
+        return;
+      }
 
-    const result = await nodesApi.checkPayload({
-      ...form,
-      url: form.url.replace(/\/+$/, ''),
-      login: form.authType === 'password' ? form.login : undefined,
-      password: form.authType === 'password' ? form.password : undefined,
-      token: form.authType === 'token' ? form.token : undefined,
-    });
+      const result = await nodesApi.checkPayload({
+        ...form,
+        url: form.url.replace(/\/+$/, ''),
+        login: form.authType === 'password' ? form.login : undefined,
+        password: form.authType === 'password' ? form.password : undefined,
+        token: form.authType === 'token' ? form.token : undefined,
+      });
 
-    setMessage({
-      open: true,
-      type: result.success ? 'success' : 'error',
-      text: result.success ? 'Подключение успешно' : 'Не удалось подключиться',
-    });
-  };
-
-  const checkNode = async (node: NodeRecord) => {
-    setCheckingId(node.id);
-    try {
-      const result = await nodesApi.check(node.id);
       setMessage({
         open: true,
         type: result.success ? 'success' : 'error',
         text: result.success ? 'Подключение успешно' : 'Не удалось подключиться',
       });
-      loadNodes();
-    } finally {
-      setCheckingId(null);
-    }
-  };
-
-  const syncNodes = async () => {
-    const result = await nodesApi.syncFromMain();
-    setMessage({
-      open: true,
-      type: 'success',
-      text: `Синхронизировано нод: ${result.count}`,
     });
-    loadNodes();
   };
 
   const removeNode = async () => {
-    if (!deleteTarget) return;
-    try {
-      await nodesApi.remove(deleteTarget.id);
+    return runTask("Выполняется удаление ноды", async () => {
+      setMessage((prev) => ({ ...prev, open: false }));
+      if (!deleteTarget) return;
+      const targetId = deleteTarget.id;
       setDeleteTarget(null);
-      setMessage({ open: true, type: 'success', text: 'Нода удалена' });
-      loadNodes();
-    } catch (error) {
-      setMessage({
-        open: true,
-        type: 'error',
-        text: getApiErrorMessage(error, 'Ошибка удаления ноды'),
-      });
-    }
+      try {
+        await nodesApi.remove(targetId, forceDelete);
+        setDeleteTarget(null);
+        setForceDelete(false);
+        setMessage({ open: true, type: 'success', text: 'Нода удалена' });
+        await loadNodes();
+      } catch (error) {
+        setMessage({
+          open: true,
+          type: 'error',
+          text: getApiErrorMessage(error, 'Ошибка удаления ноды'),
+        });
+      }
+    });
   };
 
   return (
@@ -279,7 +271,7 @@ export default function NodesPage() {
             {/* <Button startIcon={<Sync />} variant="outlined" onClick={syncNodes}>
               Синхронизировать
             </Button> */}
-            <Button startIcon={<Add />} variant="contained" onClick={openCreate}>
+            <Button disabled={Boolean(pending)} startIcon={<Add />} variant="contained" onClick={openCreate}>
               Добавить
             </Button>
           </Stack>
@@ -304,7 +296,7 @@ export default function NodesPage() {
               <TableRow key={node.id}>
                 <TableCell>
                   <Stack direction="row" spacing={1} alignItems="center">
-                    <IconButton size="small" onClick={() => nodesApi.setMain(node.id).then(loadNodes)} title={node.isMain ? '' : 'Сделать основной'}>
+                    <IconButton disabled={Boolean(pending)} size="small" onClick={() => runTask("Выполняется смена основной ноды", () => nodesApi.setMain(node.id).then(loadNodes))} title={node.isMain ? '' : 'Сделать основной'}>
                       {node.isMain ? <Star color="warning" /> : <StarBorder />}
                     </IconButton>
                     <Typography fontWeight={700}>{node.name}</Typography>
@@ -320,13 +312,10 @@ export default function NodesPage() {
                   {node.isMain && <Chip icon={<CheckCircle />} label="Основная" color="success" size="small" />}
                 </TableCell>
                 <TableCell align="right">
-                  {/* <IconButton disabled={checkingId === node.id} onClick={() => checkNode(node)}>
-                    {checkingId === node.id ? <CircularProgress size={20} /> : <CheckCircle />}
-                  </IconButton> */}
-                  <IconButton onClick={() => openEdit(node)}>
+                  <IconButton disabled={Boolean(pending)} onClick={() => openEdit(node)}>
                     <Edit />
                   </IconButton>
-                  <IconButton color="error" onClick={() => setDeleteTarget(node)}>
+                  <IconButton disabled={Boolean(pending)} color="error" onClick={() => setDeleteTarget(node)}>
                     <Delete />
                   </IconButton>
                 </TableCell>
@@ -385,9 +374,9 @@ export default function NodesPage() {
                     <FlagOptionLabel flag={value} label={countries.find((country) => country.emoji === value)?.name || 'Флаг'} />
                   )}
                 >
-                  <MenuItem value="">Без флага</MenuItem>
+                  <MenuItem disabled={Boolean(pending)} value="">Без флага</MenuItem>
                   {countries.map((country) => (
-                    <MenuItem key={country.code} value={country.emoji}>
+                    <MenuItem disabled={Boolean(pending)} key={country.code} value={country.emoji}>
                       <FlagOptionLabel flag={country.emoji} code={country.code} label={country.name} />
                     </MenuItem>
                   ))}
@@ -402,8 +391,8 @@ export default function NodesPage() {
                 label="Тип авторизации"
                 onChange={(e) => updateField('authType', e.target.value as NodeAuthType)}
               >
-                <MenuItem value="password">Логин и пароль</MenuItem>
-                <MenuItem value="token">Токен</MenuItem>
+                <MenuItem disabled={Boolean(pending)} value="password">Логин и пароль</MenuItem>
+                <MenuItem disabled={Boolean(pending)} value="token">Токен</MenuItem>
               </Select>
             </FormControl>
             {form.authType === 'password' ? (
@@ -440,30 +429,39 @@ export default function NodesPage() {
               />
             )}
             <Stack direction="row" alignItems="center" spacing={1}>
-              <Switch checked={!!form.isMain} onChange={(e) => updateField('isMain', e.target.checked)} />
+              <Switch disabled={Boolean(pending)} checked={!!form.isMain} onChange={(e) => updateField('isMain', e.target.checked)} />
               <Typography>Сделать основной нодой</Typography>
             </Stack>
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={checkFormConnection}>Проверить подключение</Button>
-          <Button onClick={() => setOpen(false)}>Отмена</Button>
-          <Button variant="contained" onClick={saveNode}>Сохранить</Button>
+          <Button disabled={Boolean(pending)} onClick={checkFormConnection}>Проверить подключение</Button>
+          <Button disabled={Boolean(pending)} onClick={() => setOpen(false)}>Отмена</Button>
+          <Button disabled={Boolean(pending)} variant="contained" onClick={saveNode}>Сохранить</Button>
         </DialogActions>
       </Dialog>
 
-      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)}>
+      <Dialog open={!!deleteTarget} onClose={() => { setDeleteTarget(null); setForceDelete(false); }}>
         <DialogTitle>Удалить ноду?</DialogTitle>
         <DialogContent>
-          <Typography>Вы уверены, что хотите удалить ноду {deleteTarget?.name}?</Typography>
+          <Typography sx={{ mb: 2 }}>Вы уверены, что хотите удалить ноду {deleteTarget?.name}?</Typography>
+          {nodes.length === 1 && (
+            <Alert severity="warning" sx={{ mb: 2 }}>Это последняя нода. При её удалении будут удалены все подписки и их подключения.</Alert>
+          )}
+          <Stack direction="row" alignItems="center" spacing={1}>
+            <Switch disabled={Boolean(pending)} checked={forceDelete} onChange={(e) => setForceDelete(e.target.checked)} slotProps={{ input: { 'aria-label': 'Принудительное удаление ноды' } }} />
+            <Typography variant="body2">
+              Удалить принудительно (если сервер 3x-ui недоступен)
+            </Typography>
+          </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteTarget(null)}>Отмена</Button>
-          <Button color="error" variant="contained" onClick={removeNode}>Удалить</Button>
+          <Button disabled={Boolean(pending)} onClick={() => { setDeleteTarget(null); setForceDelete(false); }}>Отмена</Button>
+          <Button disabled={Boolean(pending)} color="error" variant="contained" onClick={removeNode}>Удалить</Button>
         </DialogActions>
       </Dialog>
 
-      <Snackbar open={message.open} autoHideDuration={5000} onClose={() => setMessage({ ...message, open: false })}>
+      <Snackbar open={message.open && !pending} autoHideDuration={5000} onClose={() => setMessage({ ...message, open: false })} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
         <Alert severity={message.type}>{message.text}</Alert>
       </Snackbar>
     </Box>

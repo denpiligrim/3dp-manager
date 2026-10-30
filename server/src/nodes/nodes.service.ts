@@ -14,6 +14,7 @@ import { Inbound } from '../inbounds/entities/inbound.entity';
 import * as dns from 'dns/promises';
 import * as net from 'net';
 import { COUNTRIES } from '../settings/countries';
+import { DomainsService } from '../domains/domains.service';
 
 type GeoResult = {
   ip: string;
@@ -37,10 +38,13 @@ export class NodesService {
     @InjectRepository(Inbound)
     private readonly inboundsRepo: Repository<Inbound>,
     private readonly xuiService: XuiService,
+    private readonly domainsService: DomainsService,
   ) {}
 
   findAll() {
-    return this.nodesRepo.find({ order: { isMain: 'DESC', createdAt: 'DESC' } });
+    return this.nodesRepo.find({
+      order: { isMain: 'DESC', createdAt: 'DESC' },
+    });
   }
 
   async findOneWithSecrets(id: string) {
@@ -83,15 +87,14 @@ export class NodesService {
       isMain: dto.isMain ?? false,
     });
 
-    if ((await this.nodesRepo.count()) === 0) {
-      node.isMain = true;
-    }
-
-    if (node.isMain) {
-      await this.clearMainNode();
-    }
-
-    return this.nodesRepo.save(node);
+    return this.nodesRepo.manager.transaction(async (manager) => {
+      const repo = manager.getRepository(Node);
+      if ((await repo.count()) === 0) node.isMain = true;
+      if (node.isMain) await this.clearMainNode(undefined, repo);
+      const saved = await repo.save(node);
+      await this.domainsService.addHostDomain(node.domain, manager);
+      return saved;
+    });
   }
 
   async update(id: string, dto: UpdateNodeDto) {
@@ -141,11 +144,11 @@ export class NodesService {
     return this.nodesRepo.save(node);
   }
 
-  async remove(id: string) {
+  async remove(id: string, force = false) {
     const node = await this.findOneWithSecrets(id);
     const nodeCount = await this.nodesRepo.count();
 
-    await this.cleanupNodeDependencies(node, nodeCount === 1);
+    await this.cleanupNodeDependencies(node, nodeCount === 1, force);
     await this.nodesRepo.remove(node);
 
     const main = await this.getDefaultNode();
@@ -163,8 +166,14 @@ export class NodesService {
     return { success: true };
   }
 
-  private async cleanupNodeDependencies(node: Node, isLastNode: boolean) {
-    await this.deleteNodeInbounds(node);
+  private async cleanupNodeDependencies(
+    node: Node,
+    isLastNode: boolean,
+    force = false,
+  ) {
+    if (!force) {
+      await this.deleteNodeInbounds(node);
+    }
     const id = node.id;
 
     if (isLastNode) {
@@ -191,7 +200,11 @@ export class NodesService {
       const config = sub.inboundsConfig || [];
       const nextConfig = config.map((item) => {
         if (item.nodeId !== id) return item;
-        const { nodeId: _nodeId, relayServerId: _relayServerId, ...rest } = item;
+        const {
+          nodeId: _nodeId,
+          relayServerId: _relayServerId,
+          ...rest
+        } = item;
         return rest;
       });
 
@@ -273,13 +286,9 @@ export class NodesService {
             domain: getDomainFromHost(item.host),
             port: item.port,
             ip: await this.resolveIp(item.host),
-            flag: (
-              await this.lookupGeo(await this.resolveIp(item.host))
-            )?.flag,
+            flag: (await this.lookupGeo(await this.resolveIp(item.host)))?.flag,
             protocol:
-              item.protocol === NodeProtocol.Http
-                ? NodeProtocol.Http
-                : NodeProtocol.Https,
+              item.protocol === 'http' ? NodeProtocol.Http : NodeProtocol.Https,
             authType: main.authType,
             login: main.login,
             password: main.password,
@@ -295,7 +304,10 @@ export class NodesService {
   }
 
   private assertCredentials(dto: CreateNodeDto) {
-    if (dto.authType === NodeAuthType.Password && (!dto.login || !dto.password)) {
+    if (
+      dto.authType === NodeAuthType.Password &&
+      (!dto.login || !dto.password)
+    ) {
       throw new BadRequestException('Login and password are required');
     }
 
@@ -304,8 +316,8 @@ export class NodesService {
     }
   }
 
-  private async clearMainNode(exceptId?: string) {
-    const qb = this.nodesRepo
+  private async clearMainNode(exceptId?: string, repo = this.nodesRepo) {
+    const qb = repo
       .createQueryBuilder()
       .update(Node)
       .set({ isMain: false })
@@ -369,9 +381,7 @@ export class NodesService {
         host: parsed.hostname,
         port: parsed.port ? Number(parsed.port) : undefined,
         protocol:
-          parsed.protocol.replace(':', '') === NodeProtocol.Http
-            ? NodeProtocol.Http
-            : NodeProtocol.Https,
+          parsed.protocol === 'http:' ? NodeProtocol.Http : NodeProtocol.Https,
       };
     } catch {
       return { host: url, port: undefined, protocol: NodeProtocol.Https };
@@ -396,7 +406,12 @@ export class NodesService {
     const fromCode = (countryCode?: string, country?: string) => {
       const countryInfo = COUNTRIES.find((c) => c.code === countryCode);
       return countryInfo
-        ? { ip, country: countryInfo.name, countryCode, flag: countryInfo.emoji }
+        ? {
+            ip,
+            country: countryInfo.name,
+            countryCode,
+            flag: countryInfo.emoji,
+          }
         : { ip, country, countryCode };
     };
 

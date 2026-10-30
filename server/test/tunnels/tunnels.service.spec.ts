@@ -10,6 +10,7 @@ import { SshService } from 'src/tunnels/ssh.service';
 import { Setting } from 'src/settings/entities/setting.entity';
 import { Node } from 'src/nodes/entities/node.entity';
 import { Subscription } from 'src/subscriptions/entities/subscription.entity';
+import { DomainsService } from 'src/domains/domains.service';
 
 describe('TunnelsService', () => {
   let service: TunnelsService;
@@ -17,6 +18,7 @@ describe('TunnelsService', () => {
   let sshService: SshService;
 
   const mockTunnelRepo = {
+    manager: { transaction: jest.fn() },
     find: jest.fn(),
     findOne: jest.fn(),
     create: jest.fn(),
@@ -48,11 +50,16 @@ describe('TunnelsService', () => {
   const mockSshService = {
     executeCommand: jest.fn(),
   };
+  const mockDomainsService = { addHostDomain: jest.fn() };
 
   beforeEach(async () => {
+    mockTunnelRepo.manager.transaction.mockImplementation((action) =>
+      action({ getRepository: () => mockTunnelRepo }),
+    );
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TunnelsService,
+        { provide: DomainsService, useValue: mockDomainsService },
         {
           provide: getRepositoryToken(Tunnel),
           useValue: mockTunnelRepo,
@@ -87,6 +94,27 @@ describe('TunnelsService', () => {
   });
 
   describe('create', () => {
+    it('registers a relay hostname as SNI when its IP was resolved', async () => {
+      jest
+        .spyOn(service as any, 'resolveRelayAddress')
+        .mockResolvedValue({ ip: '192.0.2.1', domain: 'relay.example.com' });
+      mockNodeRepo.findOne.mockResolvedValue({ id: 'node-1' });
+      mockTunnelRepo.create.mockImplementation((value) => ({ ...value }));
+      mockTunnelRepo.save.mockImplementation(async (value) => ({
+        ...value,
+        id: 1,
+      }));
+      await service.create({
+        name: 'Relay',
+        ip: 'relay.example.com',
+        username: 'root',
+      });
+      expect(mockDomainsService.addHostDomain).toHaveBeenCalledWith(
+        'relay.example.com',
+        expect.objectContaining({ getRepository: expect.any(Function) }),
+      );
+      expect(mockTunnelRepo.manager.transaction).toHaveBeenCalledTimes(1);
+    });
     it('должен создать туннель', async () => {
       const dto = { ip: '192.168.1.1', sshPort: 22, username: 'root' };
       const node = { id: 'node-1', isMain: true };

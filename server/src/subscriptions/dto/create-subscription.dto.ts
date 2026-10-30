@@ -1,5 +1,8 @@
 import {
   IsString,
+  IsIn,
+  MaxLength,
+  IsUrl,
   IsArray,
   ValidateNested,
   IsOptional,
@@ -54,6 +57,10 @@ export class InboundConfigDto {
   @IsOptional()
   sni?: string;
 
+  @IsOptional()
+  @IsIn(['chrome', 'firefox', 'safari', 'ios', 'android', 'edge', '360', 'qq', 'random', 'randomized', 'randomizednoalpn', 'unsafe'])
+  fingerprint?: string;
+
   @IsString()
   @IsOptional()
   link?: string;
@@ -82,9 +89,43 @@ export class InboundConfigDto {
   @IsString()
   @IsOptional()
   keyFile?: string;
+
+  @IsString()
+  @IsOptional()
+  routingProfile?: string;
 }
 
 export class CreateSubscriptionDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  note?: string;
+
+  @IsOptional()
+  @ValidateIf((_dto, value: unknown) => value !== '')
+  @IsUrl({
+    protocols: ['http', 'https', 'tg'],
+    require_protocol: true,
+    require_tld: false,
+  })
+  @MaxLength(2048)
+  supportUrl?: string;
+
+  @IsOptional()
+  @ValidateIf((_dto, value: unknown) => value !== '')
+  @IsUrl({
+    protocols: ['http', 'https'],
+    require_protocol: true,
+    require_tld: false,
+  })
+  @MaxLength(2048)
+  websiteUrl?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(254)
+  clientId?: string;
+
   @IsString()
   name: string;
 

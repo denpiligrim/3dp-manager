@@ -1,3 +1,4 @@
+import { OperationsService } from 'src/operations/operations.service';
 /* eslint-disable @typescript-eslint/unbound-method */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
@@ -32,6 +33,15 @@ describe('RotationService', () => {
   let xuiService: XuiService;
   let inboundBuilder: InboundBuilderService;
 
+  const mockOperations = {
+    enqueue: jest.fn(),
+    progress: jest.fn(),
+    note: jest.fn(),
+    record: jest.fn(),
+    resumeCheckpoint: jest.fn(),
+    checkpoint: jest.fn(),
+  };
+
   const mockSubRepo = {
     find: jest.fn(),
     findOne: jest.fn(),
@@ -45,6 +55,7 @@ describe('RotationService', () => {
   };
 
   const mockInboundRepo = {
+    update: jest.fn(),
     find: jest.fn(),
     findOne: jest.fn(),
     create: jest.fn(),
@@ -80,6 +91,8 @@ describe('RotationService', () => {
   };
 
   const mockXuiService = {
+    prepareSubscriptionClient: jest.fn(),
+    addInboundForClient: jest.fn(),
     login: jest.fn(),
     deleteInbound: jest.fn(),
     addInbound: jest.fn(),
@@ -103,6 +116,7 @@ describe('RotationService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RotationService,
+        { provide: OperationsService, useValue: mockOperations },
         {
           provide: getRepositoryToken(Subscription),
           useValue: mockSubRepo,
@@ -139,6 +153,15 @@ describe('RotationService', () => {
     }).compile();
 
     service = module.get<RotationService>(RotationService);
+    jest.spyOn(service as any, 'pause').mockResolvedValue(undefined);
+    mockInboundRepo.create.mockImplementation((value) => ({ ...value }));
+    mockSubRepo.findOne.mockImplementation(async (options) => {
+      const list = await mockSubRepo.find({});
+      return (
+        list?.find((item: { id: string }) => item.id === options.where.id) ||
+        null
+      );
+    });
     _subRepo = module.get<Repository<Subscription>>(
       getRepositoryToken(Subscription),
     );
@@ -228,11 +251,85 @@ describe('RotationService', () => {
       await (service as any).handleTicker();
 
       // Ротация запустится, но завершится с ошибкой (пустые домены)
-      expect(xuiService.login).toHaveBeenCalled();
+      expect(xuiService.login).not.toHaveBeenCalled();
+      expect(mockOperations.enqueue).toHaveBeenCalledWith(
+        'rotation.all',
+        expect.any(String),
+        [null],
+      );
     });
   });
 
   describe('performRotation', () => {
+    it('pages through a large batch and continues after a failed subscription without loading all relations', async () => {
+      const subscriptions = Array.from({ length: 25 }, (_, index) => ({
+        id: String(index).padStart(2, '0'),
+        name: `Subscription ${index}`,
+      }));
+      mockXuiService.login.mockResolvedValue(true);
+      mockDomainRepo.find.mockResolvedValue([]);
+      mockSubRepo.find.mockImplementation(async (options) =>
+        subscriptions
+          .filter((sub) => !options.where.id || sub.id > options.where.id.value)
+          .slice(0, options.take)
+          .map((sub) => ({ id: sub.id })),
+      );
+      mockSubRepo.findOne.mockImplementation(async (options) =>
+        subscriptions.find((sub) => sub.id === options.where.id),
+      );
+      const rotate = jest
+        .spyOn(service as any, 'rotateSubscription')
+        .mockImplementation(async (sub: any) => sub.id !== '05');
+      try {
+        const result = await service.performRotation();
+        expect(result.success).toBe(false);
+        expect(rotate).toHaveBeenCalledTimes(25);
+        expect(mockSubRepo.find).toHaveBeenCalledTimes(3);
+        for (const [options] of mockSubRepo.find.mock.calls) {
+          expect(options).toMatchObject({ select: { id: true }, take: 10 });
+          expect(options.relations).toBeUndefined();
+        }
+        expect(mockOperations.progress).toHaveBeenLastCalledWith(
+          25,
+          25,
+          expect.any(String),
+        );
+      } finally {
+        rotate.mockRestore();
+      }
+    });
+
+    it.each(['scheduled', 'manual'])(
+      'allows XHTTP GET rotation without SNI domains (%s)',
+      async (mode) => {
+        const sub = {
+          id: 'get-sub',
+          uuid: 'get-uuid',
+          isEnabled: true,
+          isAutoRotationEnabled: true,
+          inbounds: [],
+          inboundsConfig: [{ type: 'vless-xhttp-get', port: 2053 }],
+        };
+        mockXuiService.login.mockResolvedValue(true);
+        mockSubRepo.find.mockResolvedValue([sub]);
+        mockSubRepo.findOne.mockResolvedValue(sub);
+        mockDomainRepo.find.mockResolvedValue([]);
+        const rotate = jest
+          .spyOn(service as any, 'rotateSubscription')
+          .mockResolvedValue(true);
+        try {
+          const result =
+            mode === 'manual'
+              ? await service.rotateSingleSubscription(sub.id)
+              : await service.performRotation();
+          expect(result.success).toBe(true);
+          expect(rotate).toHaveBeenCalledWith(sub, [], undefined, false);
+        } finally {
+          rotate.mockRestore();
+        }
+      },
+    );
+
     it('должен вернуть ошибку, если не удалось войти в 3x-ui', async () => {
       mockXuiService.login.mockResolvedValue(false);
 
@@ -273,7 +370,7 @@ describe('RotationService', () => {
 
       expect(result).toEqual({
         success: false,
-        message: 'Список доменов пуст!',
+        message: 'Обработано подписок: 1. Ошибок: 1.',
       });
     });
 
@@ -312,7 +409,7 @@ describe('RotationService', () => {
 
       expect(result).toEqual({
         success: true,
-        message: 'Ротация успешно выполнена',
+        message: 'Обработано подписок: 1. Ошибок: 0.',
       });
     });
   });
@@ -430,7 +527,244 @@ describe('RotationService', () => {
   });
 
   describe('rotateSubscription (private)', () => {
-    it('должен удалить старые инбаунды перед ротацией', async () => {
+    it.each(['direct', 'manual'])(
+      'uses the target node as WS host/SNI even through a relay with no SNI domains (%s)',
+      async (mode) => {
+        const target = {
+          id: 'node-1',
+          domain: 'node.example.com',
+          ip: '192.0.2.1',
+        };
+        const sub = {
+          id: 'ws-sub',
+          name: 'WS',
+          inbounds: [],
+          relayServer: { nodeId: 'node-1', domain: 'relay.example.com' },
+          inboundsConfig: [
+            {
+              type: 'vless-ws',
+              port: 443,
+              sni: 'random',
+              fingerprint: 'chrome',
+              certificateFile: '/custom/cert.pem',
+              keyFile: '/custom/key.pem',
+            },
+          ],
+        };
+        jest.spyOn(service as any, 'resolveNode').mockResolvedValue(target);
+        mockSubRepo.findOne.mockResolvedValue(sub);
+        mockDomainRepo.find.mockResolvedValue([]);
+        mockXuiService.login.mockResolvedValue(true);
+        mockXuiService.addInbound.mockResolvedValue(101);
+        mockInboundBuilder.buildVlessWs.mockReturnValue({
+          port: 443,
+          protocol: 'vless',
+          settings: '{"clients":[{"id":"client-id"}]}',
+          streamSettings: '{}',
+        });
+        mockInboundBuilder.buildInboundLink.mockReturnValue('vless://link');
+        if (mode === 'manual')
+          expect((await service.rotateSingleSubscription(sub.id)).success).toBe(
+            true,
+          );
+        else
+          expect(await (service as any).rotateSubscription(sub, [], null)).toBe(
+            true,
+          );
+        expect(mockInboundBuilder.buildVlessWs).toHaveBeenCalledWith(
+          expect.objectContaining({
+            sni: 'node.example.com',
+            fingerprint: 'chrome',
+            certificateFile: '/custom/cert.pem',
+            keyFile: '/custom/key.pem',
+          }),
+        );
+        expect(mockInboundBuilder.buildInboundLink).toHaveBeenCalledWith(
+          expect.anything(),
+          'relay.example.com',
+          'client-id',
+          expect.anything(),
+        );
+      },
+    );
+
+    it.each([false, true])(
+      'prepares a single client per node and reuses it for all inbounds (auto=%s)',
+      async (auto) => {
+        const a = { id: 'a', name: 'A' };
+        const b = { id: 'b', name: 'B' };
+        const clientA = { email: 'shared', id: 'uuid-a' };
+        const clientB = { email: 'shared', id: 'uuid-b' };
+        jest
+          .spyOn(service as any, 'resolveNode')
+          .mockImplementation(async (id) => (id === 'b' ? b : a));
+        mockXuiService.prepareSubscriptionClient.mockImplementation(
+          async (_id, _auto, node) => (node.id === 'b' ? clientB : clientA),
+        );
+        mockXuiService.addInboundForClient.mockResolvedValue(42);
+        mockInboundBuilder.buildVlessWs.mockReturnValue({
+          port: 12000,
+          protocol: 'vless',
+          settings: '{}',
+          streamSettings: '{}',
+        });
+        const sub = {
+          name: 'Test',
+          clientId: 'shared',
+          clientAutoCreate: auto,
+          inbounds: [],
+          inboundsConfig: [
+            { type: 'vless-ws', nodeId: 'a', port: 12000 },
+            { type: 'vless-ws', nodeId: 'a', port: 12001 },
+            { type: 'vless-ws', nodeId: 'b', port: 12002 },
+            { type: 'custom', link: 'custom' },
+          ],
+        };
+        expect(await (service as any).rotateSubscription(sub, [], null)).toBe(
+          true,
+        );
+        expect(mockXuiService.prepareSubscriptionClient).toHaveBeenCalledTimes(
+          2,
+        );
+        expect(mockXuiService.prepareSubscriptionClient).toHaveBeenCalledWith(
+          'shared',
+          auto,
+          a,
+        );
+        expect(mockXuiService.prepareSubscriptionClient).toHaveBeenCalledWith(
+          'shared',
+          auto,
+          b,
+        );
+        expect(mockXuiService.addInboundForClient).toHaveBeenNthCalledWith(
+          1,
+          expect.anything(),
+          clientA,
+          a,
+        );
+        expect(mockXuiService.addInboundForClient).toHaveBeenNthCalledWith(
+          2,
+          expect.anything(),
+          clientA,
+          a,
+        );
+        expect(mockXuiService.addInboundForClient).toHaveBeenNthCalledWith(
+          3,
+          expect.anything(),
+          clientB,
+          b,
+        );
+        expect(mockXuiService.addInbound).not.toHaveBeenCalled();
+      },
+    );
+
+    it('preserves existing inbounds if client preparation fails on a node', async () => {
+      mockXuiService.prepareSubscriptionClient.mockRejectedValueOnce(
+        new Error('Client missing'),
+      );
+      const sub = {
+        clientId: 'missing',
+        inbounds: [{ id: 'old', xuiId: 1 }],
+        inboundsConfig: [{ type: 'vless-ws', port: 12000 }],
+      };
+      expect(await (service as any).rotateSubscription(sub, [], null)).toBe(
+        false,
+      );
+      expect(mockXuiService.addInboundForClient).not.toHaveBeenCalled();
+      expect(mockInboundRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it.each([false, true])(
+      'creates replacements before cleanup (force=%s)',
+      async (force) => {
+        const old = { id: 'old', xuiId: 101, nodeId: 'node-1' };
+        const sub = {
+          id: 'sub',
+          name: 'Test',
+          inbounds: [old],
+          inboundsConfig: [
+            { type: 'vless-tcp-reality', port: 443, sni: 'example.com' },
+          ],
+        };
+        mockXuiService.getNewX25519Cert.mockResolvedValue({
+          privateKey: 'key',
+          publicKey: 'pub',
+        });
+        mockInboundBuilder.buildVlessRealityTcp.mockReturnValue({
+          port: 443,
+          protocol: 'vless',
+          settings: '{}',
+        });
+        mockXuiService.addInbound.mockImplementation((config) => {
+          config.port = 12345;
+          return Promise.resolve(202);
+        });
+        const result = await (service as any).rotateSubscription(
+          sub,
+          [],
+          null,
+          force,
+        );
+        expect(result).toBe(true);
+        expect(mockInboundRepo.create).toHaveBeenCalledWith(
+          expect.objectContaining({ port: 12345 }),
+        );
+        expect(mockInboundRepo.save.mock.invocationCallOrder[0]).toBeLessThan(
+          mockInboundRepo.delete.mock.invocationCallOrder[0],
+        );
+        if (force) {
+          expect(mockXuiService.deleteInbound).not.toHaveBeenCalled();
+        } else {
+          expect(mockXuiService.deleteInbound).toHaveBeenCalledTimes(1);
+          expect(mockXuiService.deleteInbound).toHaveBeenCalledWith(
+            101,
+            undefined,
+          );
+        }
+      },
+    );
+
+    it('keeps old links and reports failure when a replacement is rejected', async () => {
+      mockXuiService.getNewX25519Cert.mockResolvedValue({
+        privateKey: 'key',
+        publicKey: 'pub',
+      });
+      mockInboundBuilder.buildVlessRealityTcp.mockReturnValue({
+        port: 443,
+        protocol: 'vless',
+        settings: '{}',
+      });
+      mockXuiService.addInbound.mockResolvedValue(null);
+      const result = await (service as any).rotateSubscription(
+        {
+          id: 'sub',
+          inbounds: [{ id: 'old', xuiId: 101 }],
+          inboundsConfig: [{ type: 'vless-tcp-reality', port: 443 }],
+        },
+        [],
+        null,
+      );
+      expect(result).toBe(false);
+      expect(mockXuiService.deleteInbound).not.toHaveBeenCalled();
+      expect(mockInboundRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('retains a managed record for retry when remote cleanup fails', async () => {
+      mockXuiService.deleteInbound.mockResolvedValue(false);
+      const result = await (service as any).rotateSubscription(
+        {
+          id: 'sub',
+          inbounds: [{ id: 'old', xuiId: 101 }],
+          inboundsConfig: [],
+        },
+        [],
+        null,
+      );
+      expect(result).toBe(false);
+      expect(mockInboundRepo.delete).not.toHaveBeenCalled();
+    });
+
+    it('должен удалить старые инбаунды после ротации', async () => {
       const mockInbound = {
         id: 'inb-1',
         xuiId: 101,
@@ -448,7 +782,7 @@ describe('RotationService', () => {
         uuid: 'uuid-1',
         isEnabled: true,
         inbounds: [mockInbound],
-        inboundsConfig: [],
+        inboundsConfig: [{ type: 'custom', link: 'vless://replacement' }],
       };
 
       mockInbound.subscription = mockSub;
@@ -468,6 +802,24 @@ describe('RotationService', () => {
       expect(xuiService.deleteInbound).toHaveBeenCalledWith(101, undefined);
       expect(inboundRepo.delete).toHaveBeenCalled();
     });
+
+    it.each(['happ-routing', 'incy-routing'])(
+      'does not create an inbound for %s metadata',
+      async (type) => {
+        await (service as any).rotateSubscription(
+          {
+            id: '1',
+            uuid: 'uuid-1',
+            isEnabled: true,
+            inbounds: [],
+            inboundsConfig: [{ type, routingProfile: '{"Name":"Test"}' }],
+          },
+          [],
+        );
+        expect(xuiService.addInbound).not.toHaveBeenCalled();
+        expect(inboundRepo.save).not.toHaveBeenCalled();
+      },
+    );
 
     it('должен обработать custom инбаунд без 3x-ui', async () => {
       const mockSub = {

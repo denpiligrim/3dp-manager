@@ -56,6 +56,20 @@ describe('RotationController', () => {
   });
 
   describe('rotateSingle', () => {
+    it.each(['true', 'false', undefined])(
+      'passes force=%s explicitly',
+      async (force) => {
+        await controller.rotateSingle('sub-123', force);
+        expect(rotationService.rotateSingleSubscription).toHaveBeenCalledWith(
+          'sub-123',
+          force === 'true',
+        );
+        await controller.rotateAll(force);
+        expect(rotationService.performRotation).toHaveBeenCalledWith(
+          force === 'true',
+        );
+      },
+    );
     it('должен запустить ротацию одной подписки', async () => {
       const mockResult = {
         success: true,
@@ -71,6 +85,7 @@ describe('RotationController', () => {
       expect(result).toEqual(mockResult);
       expect(rotationService.rotateSingleSubscription).toHaveBeenCalledWith(
         'sub-123',
+        false,
       );
     });
 

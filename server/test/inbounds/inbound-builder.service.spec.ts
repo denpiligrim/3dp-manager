@@ -33,6 +33,202 @@ describe('InboundBuilderService', () => {
     jest.clearAllMocks();
   });
 
+  it.each([
+    ['second.denpiligrim.ru', 'second.denpiligrim.ru'],
+    ['192.0.2.1', 'ip'],
+    ['2001:db8::1', 'ip'],
+    ['[2001:db8::1]', 'ip'],
+  ])(
+    'uses the certificate directory for %s without changing the server name',
+    (sni, directory) => {
+      const inbound = service.buildHysteria2Inbound({
+        port: 443,
+        uuid: 'test',
+        sni,
+      });
+      const tls = JSON.parse(inbound.streamSettings).tlsSettings;
+      expect(tls.serverName).toBe(sni);
+      expect(tls.certificates[0]).toMatchObject({
+        certificateFile: `/root/cert/${directory}/fullchain.pem`,
+        keyFile: `/root/cert/${directory}/privkey.pem`,
+      });
+    },
+  );
+
+  it.each([
+    'buildVlessRealityTcp',
+    'buildVlessRealityXhttp',
+    'buildVlessRealityGrpc',
+    'buildTrojanRealityTcp',
+  ] as const)(
+    '%s preserves selected fingerprints in settings and links',
+    (method) => {
+      const params = {
+        port: 443,
+        uuid: 'test-uuid',
+        sni: 'example.com',
+        privateKey: 'private-key',
+        publicKey: 'public-key',
+      };
+      for (const fingerprint of [
+        undefined,
+        'chrome',
+        'firefox',
+        'safari',
+        'ios',
+        'android',
+        'edge',
+        '360',
+        'qq',
+        'random',
+        'randomized',
+        'randomizednoalpn',
+        'unsafe',
+      ]) {
+        const inbound = service[method]({ ...params, fingerprint });
+        const expected = fingerprint ?? 'firefox';
+        expect(
+          JSON.parse(inbound.streamSettings).realitySettings.settings
+            .fingerprint,
+        ).toBe(expected);
+        const link = new URL(
+          service.buildInboundLink(
+            inbound,
+            'node.example.com',
+            'test-uuid',
+            '',
+          ),
+        );
+        expect(link.searchParams.get('fp')).toBe(expected);
+      }
+    },
+  );
+
+  it('preserves the XHTTP GET transport settings in direct and relay subscription links', () => {
+    const inbound = service.buildVlessXhttpGet({
+      port: 2053,
+      uuid: 'test-uuid',
+    });
+    const stream = JSON.parse(inbound.streamSettings);
+    expect(stream.security).toBe('none');
+    expect(stream.realitySettings).toBeUndefined();
+    expect(JSON.parse(inbound.settings).clients[0]).toMatchObject({
+      id: 'test-uuid',
+      flow: '',
+      enable: true,
+    });
+    expect(JSON.parse(inbound.sniffing).enabled).toBe(true);
+
+    for (const address of ['node.example.com', 'relay.example.com']) {
+      const link = new URL(
+        service.buildInboundLink(inbound, address, 'test-uuid', ''),
+      );
+      expect(link.hostname).toBe(address);
+      expect(link.port).toBe('2053');
+      expect(link.searchParams.get('security')).toBe('none');
+      expect(link.searchParams.get('path')).toBe(
+        '/static/media/live/segment9.ts',
+      );
+      expect(link.searchParams.get('mode')).toBe('packet-up');
+      expect(link.searchParams.get('host')).toBe('');
+      const extra = JSON.parse(link.searchParams.get('extra')!);
+      expect(extra).toMatchObject({
+        uplinkHTTPMethod: 'GET',
+        sessionIDPlacement: 'path',
+        sessionIDLength: '16-24',
+        xPaddingPlacement: 'query',
+        scMinPostsIntervalMs: '50-150',
+      });
+      expect({
+        path: link.searchParams.get('path'),
+        host: link.searchParams.get('host'),
+        mode: link.searchParams.get('mode'),
+        ...extra,
+      }).toEqual(stream.xhttpSettings);
+      expect(extra.enableXmux).toBeUndefined();
+      expect(link.searchParams.has('pbk')).toBe(false);
+    }
+  });
+
+  it.each([
+    [
+      'VLESS Reality TCP',
+      () =>
+        service.buildVlessRealityTcp({
+          port: 443,
+          uuid: 'test-uuid',
+          sni: 'example.com',
+          privateKey: 'private-key',
+          publicKey: 'public-key',
+        }),
+    ],
+    [
+      'VLESS Reality XHTTP',
+      () =>
+        service.buildVlessRealityXhttp({
+          port: 8443,
+          uuid: 'test-uuid',
+          sni: 'example.com',
+          privateKey: 'private-key',
+          publicKey: 'public-key',
+        }),
+    ],
+    [
+      'VLESS Reality gRPC',
+      () =>
+        service.buildVlessRealityGrpc({
+          port: 2053,
+          uuid: 'test-uuid',
+          sni: 'example.com',
+          privateKey: 'private-key',
+          publicKey: 'public-key',
+        }),
+    ],
+    [
+      'VLESS WebSocket',
+      () =>
+        service.buildVlessWs({
+          port: 10000,
+          uuid: 'test-uuid',
+          sni: 'example.com',
+        }),
+    ],
+    [
+      'VMess TCP',
+      () =>
+        service.buildVmessTcp({
+          port: 20000,
+          uuid: 'test-uuid',
+        }),
+    ],
+    [
+      'Shadowsocks TCP',
+      () =>
+        service.buildShadowsocksTcp({
+          port: 30000,
+          uuid: 'test-uuid',
+        }),
+    ],
+    [
+      'Trojan Reality TCP',
+      () =>
+        service.buildTrojanRealityTcp({
+          port: 443,
+          uuid: 'test-uuid',
+          sni: 'example.com',
+          privateKey: 'private-key',
+          publicKey: 'public-key',
+        }),
+    ],
+  ])(
+    'не должен передавать необязательный tgId для %s',
+    (_name, buildInbound) => {
+      const settings = JSON.parse(buildInbound().settings);
+
+      expect(settings.clients[0]).not.toHaveProperty('tgId');
+    },
+  );
+
   describe('buildVlessRealityTcp', () => {
     const params = {
       port: 443,
@@ -158,7 +354,69 @@ describe('InboundBuilderService', () => {
       const result = service.buildVlessWs(params);
 
       const streamSettings = JSON.parse(result.streamSettings);
-      expect(streamSettings.wsSettings?.path).toBe('/');
+      expect(streamSettings.wsSettings?.path).toBe('/ws');
+    });
+  });
+
+  it.each([
+    ['node.example.com', 'node.example.com', undefined],
+    ['192.0.2.1', 'ip', 'chrome'],
+    ['2001:db8::1', 'ip', 'safari'],
+  ])(
+    'builds a WS TLS inbound and direct/relay links for node %s',
+    (sni, directory, fingerprint) => {
+      const inbound = service.buildVlessWs({
+        port: 443,
+        uuid: 'test-uuid',
+        sni,
+        fingerprint,
+      });
+      const stream = JSON.parse(inbound.streamSettings);
+      expect(stream).toMatchObject({
+        network: 'ws',
+        security: 'tls',
+        wsSettings: { host: sni, path: '/ws' },
+        tlsSettings: {
+          serverName: sni,
+          settings: {
+            fingerprint: fingerprint || 'firefox',
+            allowInsecure: false,
+          },
+          certificates: [
+            expect.objectContaining({
+              certificateFile: `/root/cert/${directory}/fullchain.pem`,
+              keyFile: `/root/cert/${directory}/privkey.pem`,
+            }),
+          ],
+        },
+      });
+      for (const address of [sni, 'relay.example.com']) {
+        const link = new URL(
+          service.buildInboundLink(inbound, address, 'test-uuid', ''),
+        );
+        expect(link.searchParams.get('host')).toBe(sni);
+        expect(link.searchParams.get('sni')).toBe(sni);
+        expect(link.searchParams.get('path')).toBe('/ws');
+        expect(link.searchParams.get('security')).toBe('tls');
+        expect(link.searchParams.get('fp')).toBe(fingerprint || 'firefox');
+        expect(link.searchParams.has('pbk')).toBe(false);
+      }
+    },
+  );
+
+  it('preserves custom certificate files for WS TLS', () => {
+    const inbound = service.buildVlessWs({
+      port: 443,
+      uuid: 'test',
+      sni: 'node.example.com',
+      certificateFile: '/custom/fullchain.pem',
+      keyFile: '/custom/key.pem',
+    });
+    expect(
+      JSON.parse(inbound.streamSettings).tlsSettings.certificates[0],
+    ).toMatchObject({
+      certificateFile: '/custom/fullchain.pem',
+      keyFile: '/custom/key.pem',
     });
   });
 
@@ -237,6 +495,56 @@ describe('InboundBuilderService', () => {
     });
   });
 
+  // 3x-ui >= v3.6.0 объявил Client.TgID как int64. Строка (в т.ч. пустая)
+  // роняет разбор всего инбаунда: "cannot unmarshal string into ... int64".
+  describe('совместимость клиента с 3x-ui v3.6.0', () => {
+    const realityParams = {
+      port: 443,
+      uuid: 'test-uuid-tgid',
+      sni: 'ya.ru',
+      privateKey: 'private-key',
+      publicKey: 'public-key',
+    };
+
+    const builders: Array<[string, () => { settings: string }]> = [
+      [
+        'buildVlessRealityTcp',
+        () => service.buildVlessRealityTcp(realityParams),
+      ],
+      [
+        'buildVlessRealityXhttp',
+        () => service.buildVlessRealityXhttp(realityParams),
+      ],
+      [
+        'buildVlessRealityGrpc',
+        () => service.buildVlessRealityGrpc(realityParams),
+      ],
+      [
+        'buildVlessWs',
+        () => service.buildVlessWs({ port: 80, uuid: 'u', sni: 'ya.ru' }),
+      ],
+      ['buildVmessTcp', () => service.buildVmessTcp({ port: 8080, uuid: 'u' })],
+      [
+        'buildShadowsocksTcp',
+        () => service.buildShadowsocksTcp({ port: 8388, uuid: 'u' }),
+      ],
+      [
+        'buildTrojanRealityTcp',
+        () => service.buildTrojanRealityTcp(realityParams),
+      ],
+    ];
+
+    it.each(builders)('%s не отправляет строковый tgId', (_name, build) => {
+      const settings = JSON.parse(build().settings);
+
+      for (const client of settings.clients) {
+        expect(
+          client.tgId === undefined || typeof client.tgId === 'number',
+        ).toBe(true);
+      }
+    });
+  });
+
   describe('buildHysteria2Link', () => {
     beforeEach(() => {
       jest.spyOn(console, 'warn').mockImplementation(() => {});
@@ -276,14 +584,15 @@ describe('InboundBuilderService', () => {
         port: 34443,
         uuid: 'test-auth',
         sni: 'oil.3dp-manager.com',
+        certificateFile:
+          '/etc/letsencrypt/live/oil.3dp-manager.com/fullchain.pem',
+        keyFile: '/etc/letsencrypt/live/oil.3dp-manager.com/privkey.pem',
       });
 
       expect(result).toMatchObject({
         enable: true,
-        listen: '0.0.0.0',
         port: 34443,
         protocol: 'hysteria',
-        tag: 'inbound-34443',
       });
 
       const settings = JSON.parse(result.settings);
@@ -525,6 +834,9 @@ describe('InboundBuilderService', () => {
 
       expect(result).toContain('trojan://');
       expect(result).toContain('security=reality');
+      expect(result).toContain('@192.168.1.1:443');
+      expect(result).not.toContain('@ya.ru:');
+      expect(result).toContain('sni=ya.ru');
     });
 
     it('должен вернуть пустую строку для trojan без reality', () => {
