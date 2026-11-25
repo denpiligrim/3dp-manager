@@ -39,7 +39,37 @@ echo ""
 #################################
 # Определяем ORIGIN_IP
 #################################
-ORIGIN_IP=${ORIGIN_IP:-false}
+[[ -n ${ORIGIN_IP:-} ]] || die "Укажите ORIGIN_IP"
+
+if [[ -z ${FORWARDING_TCP_PORTS+x} && -z ${FORWARDING_UDP_PORTS+x} ]]; then
+    FORWARDING_TCP_PORTS=443,8443,10000:60000
+    FORWARDING_UDP_PORTS=$FORWARDING_TCP_PORTS
+fi
+
+forwarded_ports=()
+parse_ports() {
+    local proto=$1 list=$2 item first last port
+    local -a items
+    local pattern='^[[:space:]]*([0-9]{1,5})([[:space:]]*:[[:space:]]*([0-9]{1,5}))?[[:space:]]*$'
+    [[ -n $list ]] || return 0
+    [[ $list != *$'\n'* && $list != *, ]] || die "Некорректный список портов $proto"
+    IFS=, read -r -a items <<< "$list"
+    for item in "${items[@]}"; do
+        [[ $item =~ $pattern ]] || die "Некорректный порт $proto: '$item'"
+        first=$((10#${BASH_REMATCH[1]}))
+        last=$((10#${BASH_REMATCH[3]:-${BASH_REMATCH[1]}}))
+        (( first >= 1 && first <= last && last <= 65535 )) || die "Недопустимый порт или диапазон $proto: '$item'"
+        port=$first
+        if (( first != last )); then
+            port="$first:$last"
+        fi
+        forwarded_ports+=("$port/$proto")
+    done
+}
+
+parse_ports tcp "${FORWARDING_TCP_PORTS:-}"
+parse_ports udp "${FORWARDING_UDP_PORTS:-}"
+(( ${#forwarded_ports[@]} )) || die "Укажите хотя бы один порт TCP или UDP"
 
 #################################
 # UFW NAT
@@ -90,16 +120,19 @@ sysctl --system
 echo "--- Настройка правил перенаправления (before.rules) ---"
 cp /etc/ufw/before.rules /etc/ufw/before.rules.bak
 
-cat <<EOF > /tmp/ufw_nat_rules
+write_forwarding_rules() {
+cat <<EOF
 *nat
 :PREROUTING ACCEPT [0:0]
 :POSTROUTING ACCEPT [0:0]
-# Проброс портов
--A PREROUTING -p tcp -m multiport --dports 443,8443,10000:60000 -j DNAT --to-destination $ORIGIN_IP
--A PREROUTING -p udp -m multiport --dports 443,8443,10000:60000 -j DNAT --to-destination $ORIGIN_IP
-# Маскировка под локальный IP сервера
--A POSTROUTING -p tcp -d $ORIGIN_IP -j SNAT --to-source $LOCAL_IP
--A POSTROUTING -p udp -d $ORIGIN_IP -j SNAT --to-source $LOCAL_IP
+EOF
+for entry in "${forwarded_ports[@]}"; do
+    proto=${entry##*/}
+    port=${entry%/*}
+    echo "-A PREROUTING -p $proto --dport $port -j DNAT --to-destination $ORIGIN_IP"
+    echo "-A POSTROUTING -p $proto -d $ORIGIN_IP --dport $port -j SNAT --to-source $LOCAL_IP"
+done
+cat <<EOF
 COMMIT
 
 *filter
@@ -122,20 +155,18 @@ COMMIT
 COMMIT
 
 EOF
+}
 
 sed -i '/\*nat/,/COMMIT/d' /etc/ufw/before.rules
 sed -i '/\*mangle/,/COMMIT/d' /etc/ufw/before.rules
 
-cat /tmp/ufw_nat_rules /etc/ufw/before.rules > /etc/ufw/before.rules.new
+{ write_forwarding_rules; cat /etc/ufw/before.rules; } > /etc/ufw/before.rules.new
 mv /etc/ufw/before.rules.new /etc/ufw/before.rules
 
 echo "--- Открытие портов в самом фаерволе ---"
-ufw allow 443/tcp
-ufw allow 443/udp
-ufw allow 8443/tcp
-ufw allow 8443/udp
-ufw allow 10000:60000/tcp
-ufw allow 10000:60000/udp
+for entry in "${forwarded_ports[@]}"; do
+    ufw allow "$entry"
+done
 
 sed -i 's/DEFAULT_FORWARD_POLICY="DROP"/DEFAULT_FORWARD_POLICY="ACCEPT"/' /etc/default/ufw
 
